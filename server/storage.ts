@@ -417,9 +417,8 @@ export class DatabaseStorage implements IStorage {
       averageScore: Math.round(averageScore),
     };
   }
-}
 
-async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
+  async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
     const [user] = await this.db.select().from(users).where(eq(users.employeeId, employeeId));
     return user || undefined;
   }
@@ -438,7 +437,7 @@ async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
     // Get user
     const user = await this.getUserByEmail(employeeIdentifier) || 
                   await this.getUserByEmployeeId(employeeIdentifier);
-    
+
     if (!user) return;
 
     // Enroll in each compliance course
@@ -447,7 +446,7 @@ async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
       if (!existingEnrollment) {
         const expirationDate = new Date();
         expirationDate.setMonth(expirationDate.getMonth() + (course.renewalPeriodMonths || 3));
-        
+
         await this.createEnrollment({
           userId: user.id,
           courseId: course.id,
@@ -462,7 +461,7 @@ async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
       .update(users)
       .set({ isActive: false })
       .where(sql`${users.id} = ANY(ARRAY[${employeeIds.map(id => `'${id}'`).join(',')}])`);
-    
+
     return result.rowCount || 0;
   }
 
@@ -476,7 +475,7 @@ async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
   }> {
     const [totalEmp] = await this.db.select({ count: sql`count(*)` }).from(users).where(eq(users.role, "employee"));
     const [activeEmp] = await this.db.select({ count: sql`count(*)` }).from(users).where(and(eq(users.role, "employee"), eq(users.isActive, true)));
-    
+
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
@@ -570,4 +569,3 @@ async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
 }
 
 export const storage = new DatabaseStorage(db);
-
