@@ -412,7 +412,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Not enrolled in this course" });
       }
       
-      // Update enrollment with quiz score and completion only if passing
+      // Get quiz to check passing score
+      const quiz = await storage.getQuizByCourseId(courseId);
       const passingScore = quiz?.passingScore || 70;
       const isPassing = score >= passingScore;
       
@@ -423,7 +424,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Generate certificate if passing score
-      const quiz = await storage.getQuizByCourseId(courseId);
       if (quiz && isPassing) {
         const certificate = await storage.createCertificate({
           userId: req.session.userId,

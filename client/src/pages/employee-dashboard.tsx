@@ -269,7 +269,9 @@ export default function EmployeeDashboard() {
                                   className="w-full"
                                   onClick={() => setSelectedCourse(enrollment)}
                                 >
-                                  {enrollment.progress > 0 ? "Continue Course" : "Start Course"}
+                                  {enrollment.certificateIssued ? "Review Course" :
+                                   enrollment.quizScore ? "Retake Course" :
+                                   enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                                 </Button>
                               </div>
                             ))}
@@ -350,11 +352,11 @@ export default function EmployeeDashboard() {
                               <Progress value={enrollment.progress} className="mb-4" />
                             )}
                             <Button
-                              className={`w-full ${enrollment.completedAt ? "opacity-75" : ""}`}
+                              className="w-full"
                               onClick={() => setSelectedCourse(enrollment)}
-                              disabled={enrollment.completedAt}
                             >
-                              {enrollment.completedAt ? "View Course" : 
+                              {enrollment.certificateIssued ? "Review Course" :
+                               enrollment.quizScore ? "Retake Course" :
                                enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                             </Button>
                           </CardContent>

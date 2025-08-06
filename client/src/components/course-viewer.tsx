@@ -170,7 +170,6 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 </div>
                 <Button
                   onClick={() => setShowQuiz(true)}
-                  disabled={enrollment.completedAt}
                 >
                   {enrollment.quizScore ? "Retake Quiz" : "Start Quiz"}
                 </Button>
