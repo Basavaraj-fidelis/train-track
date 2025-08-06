@@ -17,6 +17,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const [showQuiz, setShowQuiz] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+
 
   const { data: quiz } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
@@ -61,6 +63,10 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 controls
                 className="w-full h-full rounded-lg"
                 poster="/placeholder-video-poster.jpg"
+                onError={(e) => {
+                  console.error('Video error:', e);
+                  setError('Video file not found or corrupted');
+                }}
               >
                 <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
                 Your browser does not support the video tag.
@@ -70,6 +76,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 <div className="text-center text-white">
                   <Play size={64} className="mx-auto mb-4 opacity-50" />
                   <p>No video available for this course</p>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
+                <div className="text-center text-white">
+                  <p className="text-sm">{error}</p>
+                  <p className="text-xs mt-2 opacity-75">Please contact your administrator</p>
                 </div>
               </div>
             )}

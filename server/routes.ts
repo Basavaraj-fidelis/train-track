@@ -306,7 +306,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filename = req.params.filename;
       const videoPath = path.join(process.cwd(), "server/uploads", filename);
       
+      console.log(`Attempting to serve video: ${videoPath}`);
+      
       if (!fs.existsSync(videoPath)) {
+        console.error(`Video file not found: ${videoPath}`);
         return res.status(404).json({ message: "Video not found" });
       }
       
