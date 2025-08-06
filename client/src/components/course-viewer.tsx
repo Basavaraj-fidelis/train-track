@@ -274,15 +274,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       )}
 
         <CertificateAcknowledgmentModal
-          open={showAcknowledgment}
-          onOpenChange={setShowAcknowledgment}
-          courseTitle={course.title}
-          userName={userData?.user?.name || ""}
-          completionDate={new Date().toLocaleDateString()}
-          quizScore={enrollment?.quizScore || 0}
-          onAcknowledge={handleAcknowledge}
-        />
-      </div>
+        open={showAcknowledgment}
+        onOpenChange={setShowAcknowledgment}
+        courseTitle={course.title}
+        userName={userData?.user?.name || ""}
+        completionDate={new Date().toLocaleDateString()}
+        quizScore={enrollment?.quizScore || 0}
+        onAcknowledge={handleAcknowledge}
+      />
     </div>
   );
 }
