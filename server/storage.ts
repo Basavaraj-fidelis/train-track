@@ -419,10 +419,10 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
+async getUserByEmployeeId(employeeId: string): Promise<User | undefined> => {
     const [user] = await this.db.select().from(users).where(eq(users.employeeId, employeeId));
     return user || undefined;
-  }
+  };
 
   async autoEnrollInComplianceCourses(employeeIdentifier: string): Promise<void> {
     // Get all compliance courses
