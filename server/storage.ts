@@ -41,6 +41,8 @@ export interface IStorage {
   getUserCertificates(userId: string): Promise<(Certificate & { course: Course })[]>;
   createCertificate(certificate: InsertCertificate): Promise<Certificate>;
   getCertificate(id: string): Promise<Certificate | undefined>;
+  updateCertificate(certificateId: string, updates: Partial<InsertCertificate>);
+  getUserCertificateForCourse(userId: string, courseId: string);
 
   // Dashboard statistics
   getDashboardStats(): Promise<{
@@ -48,6 +50,9 @@ export interface IStorage {
     activeCourses: number;
     pendingAssignments: number;
     certificatesIssued: number;
+    completedCourses: number;
+    totalEnrollments: number;
+    averageProgress: number;
   }>;
 
   // Bulk operations
@@ -121,7 +126,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const courseId = crypto.randomUUID();
-      
+
       const [course] = await this.db
         .insert(courses)
         .values({
@@ -251,11 +256,31 @@ export class DatabaseStorage implements IStorage {
       .then(results => results.map(result => ({ ...result.certificates, course: result.courses })));
   }
 
-  async createCertificate(insertCertificate: InsertCertificate): Promise<Certificate> {
+  async createCertificate(certificateData: InsertCertificate): Promise<Certificate> {
     const [certificate] = await this.db
       .insert(certificates)
-      .values(insertCertificate)
+      .values(certificateData)
       .returning();
+    return certificate;
+  }
+
+  async updateCertificate(certificateId: string, updates: Partial<InsertCertificate>) {
+    const [certificate] = await this.db
+      .update(certificates)
+      .set(updates)
+      .where(eq(certificates.id, certificateId))
+      .returning();
+    return certificate;
+  }
+
+  async getUserCertificateForCourse(userId: string, courseId: string) {
+    const [certificate] = await this.db
+      .select()
+      .from(certificates)
+      .where(and(
+        eq(certificates.userId, userId),
+        eq(certificates.courseId, courseId)
+      ));
     return certificate;
   }
 

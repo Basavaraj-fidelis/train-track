@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import QuizComponent from "./quiz-component";
+import CertificateAcknowledgmentModal from "./certificate-acknowledgment-modal";
 
 interface CourseViewerProps {
   enrollment: any;
@@ -18,10 +19,16 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [showAcknowledgment, setShowAcknowledgment] = useState(false);
 
 
   const { data: quiz } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
+    enabled: !!enrollment.courseId,
+  });
+
+  const { data: userData } = useQuery({
+    queryKey: ["/api/user"],
     enabled: !!enrollment.courseId,
   });
 
@@ -40,6 +47,62 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
 
     setShowQuiz(false);
   };
+
+  const handleQuizSubmit = async (answers: number[], score: number) => {
+    try {
+      const response = await fetch('/api/quiz-submission', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          courseId: course.id,
+          answers,
+          score
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit quiz');
+      }
+
+      const result = await response.json();
+
+      if (result.isPassing && !enrollment.certificateIssued) {
+        setShowQuiz(false);
+        setShowAcknowledgment(true);
+      } else if (result.isPassing) {
+        setShowQuiz(false);
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Quiz submission error:', error);
+    }
+  };
+
+  const handleAcknowledge = async (signature: string) => {
+    try {
+      const response = await fetch('/api/acknowledge-completion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          courseId: course.id,
+          digitalSignature: signature
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to acknowledge completion');
+      }
+
+      // Reload to show updated certificate status
+      window.location.reload();
+    } catch (error) {
+      console.error('Acknowledgment error:', error);
+      throw error;
+    }
+  };
+
 
   if (showQuiz && quiz) {
     return (
@@ -83,7 +146,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
                 <div className="text-center text-white">
                   <p className="text-sm">{error}</p>
-                  <p className="text-xs mt-2 opacity-75">Please contact your administrator</p>
+                  <p className="text-sm mt-2 opacity-75">Please contact your administrator</p>
                 </div>
               </div>
             )}
@@ -144,10 +207,10 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   <div className="flex justify-between">
                       <span className="text-gray-600">Status:</span>
                       <span className={`font-medium ${
-                        enrollment.certificateIssued ? 'text-green-600' : 
+                        enrollment.certificateIssued ? 'text-green-600' :
                         enrollment.quizScore ? 'text-orange-600' : 'text-blue-600'
                       }`}>
-                        {enrollment.certificateIssued ? 'Completed' : 
+                        {enrollment.certificateIssued ? 'Completed' :
                          enrollment.quizScore ? 'Needs Retake' : 'In Progress'}
                       </span>
                     </div>
@@ -209,6 +272,17 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
           </CardContent>
         </Card>
       )}
+
+        <CertificateAcknowledgmentModal
+          open={showAcknowledgment}
+          onOpenChange={setShowAcknowledgment}
+          courseTitle={course.title}
+          userName={userData?.user?.name || ""}
+          completionDate={new Date().toLocaleDateString()}
+          quizScore={enrollment?.quizScore || 0}
+          onAcknowledge={handleAcknowledge}
+        />
+      </div>
     </div>
   );
 }

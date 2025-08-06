@@ -59,6 +59,8 @@ export const certificates = pgTable("certificates", {
   enrollmentId: varchar("enrollment_id").references(() => enrollments.id).notNull(),
   issuedAt: timestamp("issued_at").defaultNow(),
   certificateData: jsonb("certificate_data"), // Certificate details for PDF generation
+  digitalSignature: text("digital_signature"), // User's digital signature
+  acknowledgedAt: timestamp("acknowledged_at"), // When user acknowledged completion
 });
 
 // Relations

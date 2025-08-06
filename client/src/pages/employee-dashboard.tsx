@@ -13,7 +13,9 @@ import {
   Clock,
   Play,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Award,
+  Calendar
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +26,7 @@ export default function EmployeeDashboard() {
   const [, setLocation] = useLocation();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("dashboard"); // Assuming activeTab is intended for the tab switching
 
   // Check authentication
   const { data: authData, isLoading: authLoading } = useQuery({
@@ -92,6 +95,7 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("dashboard");
                     setSelectedCourse(null);
+                    setActiveTab("dashboard"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "dashboard" ? "bg-green-50 text-green-600" : ""
@@ -106,6 +110,7 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("courses");
                     setSelectedCourse(null);
+                    setActiveTab("courses"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "courses" ? "bg-green-50 text-green-600" : ""
@@ -120,6 +125,7 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("certificates");
                     setSelectedCourse(null);
+                    setActiveTab("certificates"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "certificates" ? "bg-green-50 text-green-600" : ""
@@ -134,6 +140,7 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("profile");
                     setSelectedCourse(null);
+                    setActiveTab("profile"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "profile" ? "bg-green-50 text-green-600" : ""
@@ -375,32 +382,129 @@ export default function EmployeeDashboard() {
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">My Certificates</h2>
 
-                    <div className="space-y-4">
-                      {certificates?.map((cert: any) => (
-                        <Card key={cert.id}>
-                          <CardContent className="pt-6">
+                    <div className="space-y-8">
+                      {certificates?.map((cert) => (
+                        <div key={cert.id} className="border rounded-lg overflow-hidden">
+                          <div className="bg-gray-50 px-6 py-4 border-b">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                                  <Tag className="text-green-600" size={24} />
-                                </div>
-                                <div>
-                                  <div className="font-medium text-gray-900">{cert.course.title} Tag</div>
-                                  <div className="text-sm text-gray-500">
-                                    Issued: {new Date(cert.issuedAt).toLocaleDateString()}
+                              <div className="flex items-center gap-3">
+                                <Award className="w-5 h-5 text-green-600" />
+                                <h4 className="font-semibold">{cert.course.title}</h4>
+                                <Badge variant="secondary">
+                                  Score: {cert.certificateData?.score || 'N/A'}%
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-gray-500">
+                                Issued: {new Date(cert.issuedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="p-1">
+                            <div className="transform scale-75 origin-top">
+                              <div className="w-full max-w-4xl mx-auto bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-lg rounded-lg">
+                                <div className="p-12">
+                                  {/* Header */}
+                                  <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-4">
+                                      <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+                                        <Award className="w-8 h-8 text-white" />
+                                      </div>
+                                    </div>
+                                    <h1 className="text-4xl font-bold text-blue-900 mb-2">CERTIFICATE OF COMPLETION</h1>
+                                    <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
                                   </div>
-                                  <div className="text-sm text-gray-500">
-                                    Tag ID: {cert.id}
+
+                                  {/* Certificate Content */}
+                                  <div className="text-center space-y-6">
+                                    <p className="text-lg text-gray-700">This is to certify that</p>
+
+                                    <h2 className="text-3xl font-bold text-blue-800 border-b-2 border-blue-200 pb-2 inline-block px-8">
+                                      {cert.certificateData?.participantName || authData?.user?.name || 'N/A'}
+                                    </h2>
+
+                                    <p className="text-lg text-gray-700">has successfully completed the training course</p>
+
+                                    <h3 className="text-2xl font-semibold text-blue-700 bg-blue-50 py-3 px-6 rounded-lg inline-block">
+                                      {cert.certificateData?.courseName || cert.course.title}
+                                    </h3>
+
+                                    <div className="flex justify-center items-center space-x-8 mt-8">
+                                      <div className="text-center">
+                                        <div className="flex items-center justify-center gap-2 mb-1">
+                                          <CheckCircle className="w-5 h-5 text-green-600" />
+                                          <span className="font-semibold text-gray-700">Score Achieved</span>
+                                        </div>
+                                        <p className="text-2xl font-bold text-green-600">{cert.certificateData?.score || 'N/A'}%</p>
+                                      </div>
+
+                                      <div className="w-px h-12 bg-gray-300"></div>
+
+                                      <div className="text-center">
+                                        <div className="flex items-center justify-center gap-2 mb-1">
+                                          <Calendar className="w-5 h-5 text-blue-600" />
+                                          <span className="font-semibold text-gray-700">Completion Date</span>
+                                        </div>
+                                        <p className="text-lg text-blue-600">
+                                          {cert.certificateData?.completionDate || new Date(cert.issuedAt).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Footer */}
+                                  <div className="mt-12 pt-6 border-t border-gray-200">
+                                    <div className="flex justify-between items-end">
+                                      <div className="text-left">
+                                        <p className="text-sm text-gray-600 mb-1">Certificate ID</p>
+                                        <p className="font-mono text-sm font-semibold text-gray-800">
+                                          {cert.certificateData?.certificateId || cert.id}
+                                        </p>
+                                      </div>
+
+                                      <div className="text-center">
+                                        <div className="w-48 border-b-2 border-gray-400 mb-2"></div>
+                                        <p className="text-sm font-semibold text-gray-700">Training Administrator</p>
+                                        <p className="text-xs text-gray-500">TrainTrack Learning Management System</p>
+                                      </div>
+
+                                      <div className="text-right">
+                                        <p className="text-sm text-gray-600 mb-1">Issued Date</p>
+                                        <p className="text-sm font-semibold text-gray-800">
+                                          {new Date(cert.issuedAt).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {cert.certificateData?.digitalSignature && (
+                                      <div className="mt-6 text-center">
+                                        <p className="text-xs text-gray-500 mb-1">Digitally Acknowledged by Participant</p>
+                                        <p className="text-sm font-semibold text-blue-700 italic">
+                                          "{cert.certificateData.digitalSignature}"
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Verification Footer */}
+                                  <div className="mt-8 text-center">
+                                    <p className="text-xs text-gray-400">
+                                      This certificate is digitally generated and authenticated. 
+                                      For verification, please contact the training administrator with the certificate ID.
+                                    </p>
                                   </div>
                                 </div>
                               </div>
-                              <Button variant="outline" size="sm">
-                                <Download size={16} className="mr-2" />
-                                Download
+                            </div>
+
+                            <div className="text-center py-4">
+                              <Button variant="outline">
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Certificate
                               </Button>
                             </div>
-                          </CardContent>
-                        </Card>
+                          </div>
+                        </div>
                       ))}
                       {(!certificates || certificates.length === 0) && (
                         <div className="text-center py-12 text-gray-500">

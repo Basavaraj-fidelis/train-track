@@ -432,62 +432,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let certificate = null;
       
-      // Generate certificate only if passing score and not already issued
-      if (isPassing && !enrollment.certificateIssued) {
-        try {
-          certificate = await storage.createCertificate({
-            userId: req.session.userId,
-            courseId,
-            enrollmentId: enrollment.id,
-            certificateData: {
-              score,
-              completedAt: new Date(),
-            },
-          });
-          
-          // Update enrollment to mark certificate as issued
-          await storage.updateEnrollment(enrollment.id, {
-            certificateIssued: true,
-          });
-          
-          console.log('Certificate created:', certificate.id);
-          
-          // Send certificate email
-          try {
-            const user = await storage.getUser(req.session.userId);
-            const course = await storage.getCourse(courseId);
-            
-            if (user && course) {
-              await transporter.sendMail({
-                from: process.env.SMTP_FROM || 'noreply@traintrack.com',
-                to: user.email,
-                subject: `Certificate: ${course.title}`,
-                html: `
-                  <h2>Congratulations!</h2>
-                  <p>You have successfully completed <strong>${course.title}</strong> with a score of ${score}%.</p>
-                  <p>Your certificate ID: ${certificate.id}</p>
-                  <p>Completion Date: ${new Date().toLocaleDateString()}</p>
-                `,
-              });
-              console.log('Certificate email sent to:', user.email);
-            }
-          } catch (emailError) {
-            console.error('Failed to send certificate email:', emailError);
-            // Don't fail the request if email fails
-          }
-        } catch (certError) {
-          console.error('Failed to create certificate:', certError);
-          // Don't fail the request if certificate creation fails
-        }
-      } else if (isPassing && enrollment.certificateIssued) {
-        console.log('Certificate already issued for this enrollment');
-      }
+      // Don't auto-generate certificate here - wait for acknowledgment
+      console.log('Quiz passed - awaiting acknowledgment for certificate generation');
       
       res.json({ 
         success: true, 
         score, 
-        certificateIssued: isPassing && (enrollment.certificateIssued || certificate !== null), 
-        isPassing 
+        certificateIssued: enrollment.certificateIssued, 
+        isPassing,
+        needsAcknowledgment: isPassing && !enrollment.certificateIssued
       });
     } catch (error) {
       console.error('Quiz submission error:', error);
@@ -509,6 +462,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(certificates);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch certificates" });
+    }
+  });
+
+  app.post("/api/acknowledge-completion", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { courseId, digitalSignature } = req.body;
+
+      if (!digitalSignature?.trim()) {
+        return res.status(400).json({ message: "Digital signature is required" });
+      }
+
+      // Get enrollment to verify quiz completion
+      const enrollment = await storage.getEnrollment(req.session.userId, courseId);
+      if (!enrollment) {
+        return res.status(400).json({ message: "Not enrolled in this course" });
+      }
+
+      // Get quiz to check passing score
+      const quiz = await storage.getQuizByCourseId(courseId);
+      const passingScore = quiz?.passingScore || 70;
+      
+      if (!enrollment.quizScore || enrollment.quizScore < passingScore) {
+        return res.status(400).json({ message: "Quiz must be completed with passing score before acknowledgment" });
+      }
+
+      // Check if certificate already exists for this course (replace if exists)
+      const existingCertificate = await storage.getUserCertificateForCourse(req.session.userId, courseId);
+      
+      let certificate;
+      const user = await storage.getUser(req.session.userId);
+      const course = await storage.getCourse(courseId);
+      
+      const certificateData = {
+        score: enrollment.quizScore,
+        completedAt: new Date(),
+        acknowledgedAt: new Date(),
+        digitalSignature: digitalSignature.trim(),
+        participantName: user?.name || "",
+        courseName: course?.title || "",
+        completionDate: new Date().toLocaleDateString(),
+        certificateId: existingCertificate?.id || `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+      };
+
+      if (existingCertificate) {
+        // Update existing certificate
+        certificate = await storage.updateCertificate(existingCertificate.id, {
+          certificateData,
+          digitalSignature: digitalSignature.trim(),
+          acknowledgedAt: new Date()
+        });
+      } else {
+        // Create new certificate
+        certificate = await storage.createCertificate({
+          userId: req.session.userId,
+          courseId,
+          enrollmentId: enrollment.id,
+          certificateData,
+          digitalSignature: digitalSignature.trim(),
+          acknowledgedAt: new Date()
+        });
+      }
+
+      // Update enrollment to mark certificate as issued
+      await storage.updateEnrollment(enrollment.id, {
+        certificateIssued: true,
+        completedAt: new Date()
+      });
+
+      // Send certificate email
+      try {
+        if (user && course) {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+            to: user.email,
+            subject: `Certificate of Completion: ${course.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
+                <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: center;">
+                  <h3 style="color: #1e40af; margin-bottom: 20px;">This is to certify that</h3>
+                  <h2 style="color: #1e3a8a; font-size: 28px; margin: 20px 0;">${user.name}</h2>
+                  <p style="font-size: 16px; margin: 20px 0;">has successfully completed the training course</p>
+                  <h3 style="color: #1e40af; font-size: 22px; margin: 20px 0;">${course.title}</h3>
+                  <div style="margin: 30px 0;">
+                    <p><strong>Score Achieved:</strong> ${enrollment.quizScore}%</p>
+                    <p><strong>Completion Date:</strong> ${new Date().toLocaleDateString()}</p>
+                    <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
+                  </div>
+                  <p style="font-style: italic; margin-top: 30px;">Digital Signature: ${digitalSignature}</p>
+                </div>
+                <p style="text-align: center; color: #666; font-size: 12px;">
+                  This certificate was digitally generated and acknowledged by the participant.
+                </p>
+              </div>
+            `,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send certificate email:', emailError);
+      }
+
+      res.json({ 
+        success: true, 
+        certificate: certificate,
+        message: "Course completion acknowledged and certificate generated successfully"
+      });
+    } catch (error) {
+      console.error('Acknowledgment error:', error);
+      res.status(500).json({ 
+        message: "Failed to acknowledge completion",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
