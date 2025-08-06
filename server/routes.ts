@@ -409,6 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { courseId, answers, score } = req.body;
+      console.log('Quiz submission data:', { courseId, score, userId: req.session.userId });
       
       const enrollment = await storage.getEnrollment(req.session.userId, courseId);
       if (!enrollment) {
@@ -420,51 +421,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const passingScore = quiz?.passingScore || 70;
       const isPassing = score >= passingScore;
       
+      console.log('Quiz validation:', { passingScore, isPassing, currentScore: score });
+      
+      // Update enrollment with latest quiz attempt
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
         progress: isPassing ? 100 : 90, // Mark as 90% if not passing to allow retake
         completedAt: isPassing ? new Date() : null, // Only mark completed if passing
       });
       
-      // Generate certificate if passing score
-      if (quiz && isPassing) {
-        const certificate = await storage.createCertificate({
-          userId: req.session.userId,
-          courseId,
-          enrollmentId: enrollment.id,
-          certificateData: {
-            score,
-            completedAt: new Date(),
-          },
-        });
-        
-        // Update enrollment to mark certificate as issued
-        await storage.updateEnrollment(enrollment.id, {
-          certificateIssued: true,
-        });
-        
-        // Send certificate email
-        const user = await storage.getUser(req.session.userId);
-        const course = await storage.getCourse(courseId);
-        
-        if (user && course) {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM || 'noreply@traintrack.com',
-            to: user.email,
-            subject: `Certificate: ${course.title}`,
-            html: `
-              <h2>Congratulations!</h2>
-              <p>You have successfully completed <strong>${course.title}</strong> with a score of ${score}%.</p>
-              <p>Your certificate ID: ${certificate.id}</p>
-              <p>Completion Date: ${new Date().toLocaleDateString()}</p>
-            `,
+      let certificate = null;
+      
+      // Generate certificate only if passing score and not already issued
+      if (isPassing && !enrollment.certificateIssued) {
+        try {
+          certificate = await storage.createCertificate({
+            userId: req.session.userId,
+            courseId,
+            enrollmentId: enrollment.id,
+            certificateData: {
+              score,
+              completedAt: new Date(),
+            },
           });
+          
+          // Update enrollment to mark certificate as issued
+          await storage.updateEnrollment(enrollment.id, {
+            certificateIssued: true,
+          });
+          
+          console.log('Certificate created:', certificate.id);
+          
+          // Send certificate email
+          try {
+            const user = await storage.getUser(req.session.userId);
+            const course = await storage.getCourse(courseId);
+            
+            if (user && course) {
+              await transporter.sendMail({
+                from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+                to: user.email,
+                subject: `Certificate: ${course.title}`,
+                html: `
+                  <h2>Congratulations!</h2>
+                  <p>You have successfully completed <strong>${course.title}</strong> with a score of ${score}%.</p>
+                  <p>Your certificate ID: ${certificate.id}</p>
+                  <p>Completion Date: ${new Date().toLocaleDateString()}</p>
+                `,
+              });
+              console.log('Certificate email sent to:', user.email);
+            }
+          } catch (emailError) {
+            console.error('Failed to send certificate email:', emailError);
+            // Don't fail the request if email fails
+          }
+        } catch (certError) {
+          console.error('Failed to create certificate:', certError);
+          // Don't fail the request if certificate creation fails
         }
+      } else if (isPassing && enrollment.certificateIssued) {
+        console.log('Certificate already issued for this enrollment');
       }
       
-      res.json({ success: true, score, certificateIssued: isPassing, isPassing });
+      res.json({ 
+        success: true, 
+        score, 
+        certificateIssued: isPassing && (enrollment.certificateIssued || certificate !== null), 
+        isPassing 
+      });
     } catch (error) {
-      res.status(500).json({ message: "Failed to submit quiz" });
+      console.error('Quiz submission error:', error);
+      res.status(500).json({ 
+        message: "Failed to submit quiz",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
