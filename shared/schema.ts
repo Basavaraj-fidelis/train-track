@@ -61,7 +61,7 @@ export const enrollments = pgTable("enrollments", {
   renewalCount: integer("renewal_count").default(0), // Track how many times renewed
   // New fields for bulk email assignment
   assignedEmail: text("assigned_email"), // Email assigned before user creation
-  accessToken: text("access_token"), // Unique token for email access
+  assignmentToken: text("assignment_token"), // Unique token for email access
   deadline: timestamp("deadline"), // Course completion deadline
   status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
   remindersSent: integer("reminders_sent").default(0),

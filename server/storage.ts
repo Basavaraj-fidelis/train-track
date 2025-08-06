@@ -579,32 +579,40 @@ export class DatabaseStorage implements IStorage {
   // --- New methods for email-based bulk assignment ---
 
   async bulkAssignCourseByEmail(courseId: string, emails: string[], deadlineDays: number): Promise<Enrollment[]> {
-    const users = await this.db.select().from(users).where(inArray(users.email, emails));
-    const existingEnrollments = await this.db.select().from(enrollments).where(and(
-      eq(enrollments.courseId, courseId),
-      inArray(enrollments.userId, users.map(u => u.id))
-    ));
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + deadlineDays);
 
-    const existingUserIds = new Set(existingEnrollments.map(e => e.userId));
     const newEnrollmentsData: InsertEnrollment[] = [];
 
-    for (const user of users) {
-      if (!existingUserIds.has(user.id)) {
-        const expirationDate = new Date();
-        expirationDate.setDate(expirationDate.getDate() + deadlineDays);
-
+    for (const email of emails) {
+      // Check if user exists
+      const user = await this.getUserByEmail(email);
+      
+      if (user) {
+        // User exists, create regular enrollment
+        const existingEnrollment = await this.getEnrollment(user.id, courseId);
+        if (!existingEnrollment) {
+          newEnrollmentsData.push({
+            userId: user.id,
+            courseId: courseId,
+            deadline: deadline,
+            status: "pending",
+            assignmentToken: crypto.randomUUID(),
+          });
+        }
+      } else {
+        // User doesn't exist, create email-based assignment
         newEnrollmentsData.push({
-          userId: user.id,
           courseId: courseId,
-          expiresAt: expirationDate,
-          // Other fields can be set here if needed, e.g., assignedBy, assignmentToken
-          assignmentToken: crypto.randomUUID(), // Example: token for one-time login
+          assignedEmail: email,
+          deadline: deadline,
+          status: "pending",
+          assignmentToken: crypto.randomUUID(),
         });
       }
     }
 
     if (newEnrollmentsData.length === 0) {
-      // Optionally throw an error or return an empty array if no new enrollments can be made
       return [];
     }
 
@@ -617,19 +625,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCourseAssignments(courseId: string): Promise<any[]> {
-    return await this.db
+    // Get all enrollments for this course with assignment tokens
+    const enrollmentsWithUsers = await this.db
       .select()
       .from(enrollments)
-      .innerJoin(users, eq(enrollments.userId, users.id))
+      .leftJoin(users, eq(enrollments.userId, users.id))
       .where(and(
         eq(enrollments.courseId, courseId),
-        sql`${enrollments.assignmentToken} IS NOT NULL` // Filter for assignments made via email
-      ))
-      .then(results => results.map(result => ({
-        enrollment: result.enrollments,
-        user: result.users,
-        course: { id: courseId } // Assuming course details are not fetched here
-      })));
+        sql`${enrollments.assignmentToken} IS NOT NULL`
+      ));
+
+    return enrollmentsWithUsers.map(result => ({
+      ...result.enrollments,
+      user: result.users,
+    }));
   }
 
   async sendCourseReminders(courseId: string, pendingOnly?: boolean): Promise<number> {
@@ -643,15 +652,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async cleanupExpiredAssignments(): Promise<number> {
-    // This method would clean up assignments that are past their expiry date
-    // and potentially have not been completed or acted upon.
-    // For now, it marks them as expired if not already.
+    // Mark assignments as expired if past their deadline
     const result = await this.db
       .update(enrollments)
-      .set({ isExpired: true })
+      .set({ status: "expired" })
       .where(and(
-        sql`${enrollments.expiresAt} < NOW()`,
-        eq(enrollments.isExpired, false)
+        sql`${enrollments.deadline} < NOW()`,
+        sql`${enrollments.status} != 'expired'`,
+        sql`${enrollments.status} != 'completed'`
       ));
     return result.rowCount || 0;
   }
