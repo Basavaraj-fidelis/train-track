@@ -23,7 +23,8 @@ import {
   UserPlus,
   BookOpen,
   Eye,
-  Target
+  Target,
+  Mail // Added Mail icon import
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +36,8 @@ import { BulkAssignCourseDialog, BulkAssignUsersDialog } from "@/components/bulk
 import UserAnalyticsDialog from "@/components/user-analytics-dialog";
 import { useForm } from "react-hook-form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog"; // Import for email assignment dialog
+import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
 
 export default function EnhancedHRDashboard() {
   const [, setLocation] = useLocation();
@@ -56,6 +59,8 @@ export default function EnhancedHRDashboard() {
   const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
   const [selectedCourseEnrollments, setSelectedCourseEnrollments] = useState<any>(null);
   const [selectedUserEnrollments, setSelectedUserEnrollments] = useState<any>(null);
+  const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
+  const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -695,11 +700,36 @@ export default function EnhancedHRDashboard() {
                               {course.isActive ? "Active" : "Inactive"}
                             </Badge>
                             <Button
-                              variant="ghost"
                               size="sm"
-                              onClick={() => handleAssignCourse(course)}
+                              onClick={() => {
+                                setSelectedCourse(course);
+                                setBulkAssignCourseOpen(true);
+                              }}
                             >
-                              <Target size={16} />
+                              <UserPlus className="w-4 h-4 mr-1" />
+                              Assign Users
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedCourse(course);
+                                setEmailAssignmentOpen(true);
+                              }}
+                            >
+                              <Mail className="w-4 h-4 mr-1" />
+                              Email Assignment
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedCourse(course);
+                                setAssignmentsTrackerOpen(true);
+                              }}
+                            >
+                              <BarChart3 className="w-4 h-4 mr-1" />
+                              Track Progress
                             </Button>
                             <Button
                               variant="ghost"
@@ -950,6 +980,22 @@ export default function EnhancedHRDashboard() {
       <BulkAssignUsersDialog
         open={bulkAssignUsersOpen}
         onOpenChange={setBulkAssignUsersOpen}
+      />
+
+      {/* Email Bulk Assignment Dialog */}
+      <EmailBulkAssignmentDialog
+        open={emailAssignmentOpen}
+        onOpenChange={setEmailAssignmentOpen}
+        courseId={selectedCourse?.id}
+        courseName={selectedCourse?.title}
+      />
+
+      {/* Course Assignments Tracker */}
+      <CourseAssignmentsTracker
+        open={assignmentsTrackerOpen}
+        onOpenChange={setAssignmentsTrackerOpen}
+        courseId={selectedCourse?.id}
+        courseName={selectedCourse?.title}
       />
 
       {selectedAnalyticsUser && (

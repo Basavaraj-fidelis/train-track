@@ -5,7 +5,7 @@ import {
   type Certificate, type InsertCertificate
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import crypto from 'crypto';
 
@@ -65,6 +65,13 @@ export interface IStorage {
     certificatesEarned: number;
     averageScore: number;
   }>;
+
+  // Email-based bulk assignment methods
+  bulkAssignCourseByEmail(courseId: string, emails: string[], deadlineDays: number): Promise<Enrollment[]>;
+  getEnrollmentByToken(token: string): Promise<Enrollment | undefined>;
+  getCourseAssignments(courseId: string): Promise<any[]>;
+  sendCourseReminders(courseId: string, pendingOnly?: boolean): Promise<number>;
+  cleanupExpiredAssignments(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -324,7 +331,7 @@ export class DatabaseStorage implements IStorage {
       .from(enrollments)
       .where(and(
         eq(enrollments.courseId, courseId),
-        sql`${enrollments.userId} = ANY(ARRAY[${userIds.map(id => `'${id}'`).join(',')}])`
+        inArray(enrollments.userId, userIds)
       ));
 
     const existingUserIds = new Set(existingEnrollments.map(e => e.userId));
@@ -337,6 +344,8 @@ export class DatabaseStorage implements IStorage {
     const enrollmentData = newUserIds.map(userId => ({
       userId,
       courseId,
+      // Initialize expiresAt for bulk assignment if needed, or handle it in the caller
+      // expiresAt: new Date() // Example: set to now, or calculate based on course settings
     }));
 
     const newEnrollments = await this.db
@@ -354,8 +363,8 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(enrollments)
         .where(and(
-          sql`${enrollments.userId} = ANY(ARRAY[${userIds.map(id => `'${id}'`).join(',')}])`,
-          sql`${enrollments.courseId} = ANY(ARRAY[${courseIds.map(id => `'${id}'`).join(',')}])`
+          inArray(enrollments.userId, userIds),
+          inArray(enrollments.courseId, courseIds)
         ));
 
       const existingPairs = new Set(
@@ -435,7 +444,7 @@ export class DatabaseStorage implements IStorage {
       ));
 
     // Get user
-    const user = await this.getUserByEmail(employeeIdentifier) || 
+    const user = await this.getUserByEmail(employeeIdentifier) ||
                   await this.getUserByEmployeeId(employeeIdentifier);
 
     if (!user) return;
@@ -460,7 +469,7 @@ export class DatabaseStorage implements IStorage {
     const result = await this.db
       .update(users)
       .set({ isActive: false })
-      .where(sql`${users.id} = ANY(ARRAY[${employeeIds.map(id => `'${id}'`).join(',')}])`);
+      .where(inArray(users.id, employeeIds));
 
     return result.rowCount || 0;
   }
@@ -528,7 +537,7 @@ export class DatabaseStorage implements IStorage {
 
     if (userIds && userIds.length > 0) {
       whereConditions.push(
-        sql`${enrollments.userId} = ANY(ARRAY[${userIds.map(id => `'${id}'`).join(',')}])`
+        inArray(enrollments.userId, userIds)
       );
     }
 
@@ -565,6 +574,86 @@ export class DatabaseStorage implements IStorage {
         sql`${enrollments.expiresAt} < NOW()`,
         eq(enrollments.isExpired, false)
       ));
+  }
+
+  // --- New methods for email-based bulk assignment ---
+
+  async bulkAssignCourseByEmail(courseId: string, emails: string[], deadlineDays: number): Promise<Enrollment[]> {
+    const users = await this.db.select().from(users).where(inArray(users.email, emails));
+    const existingEnrollments = await this.db.select().from(enrollments).where(and(
+      eq(enrollments.courseId, courseId),
+      inArray(enrollments.userId, users.map(u => u.id))
+    ));
+
+    const existingUserIds = new Set(existingEnrollments.map(e => e.userId));
+    const newEnrollmentsData: InsertEnrollment[] = [];
+
+    for (const user of users) {
+      if (!existingUserIds.has(user.id)) {
+        const expirationDate = new Date();
+        expirationDate.setDate(expirationDate.getDate() + deadlineDays);
+
+        newEnrollmentsData.push({
+          userId: user.id,
+          courseId: courseId,
+          expiresAt: expirationDate,
+          // Other fields can be set here if needed, e.g., assignedBy, assignmentToken
+          assignmentToken: crypto.randomUUID(), // Example: token for one-time login
+        });
+      }
+    }
+
+    if (newEnrollmentsData.length === 0) {
+      // Optionally throw an error or return an empty array if no new enrollments can be made
+      return [];
+    }
+
+    return await this.db.insert(enrollments).values(newEnrollmentsData).returning();
+  }
+
+  async getEnrollmentByToken(token: string): Promise<Enrollment | undefined> {
+    const [enrollment] = await this.db.select().from(enrollments).where(eq(enrollments.assignmentToken, token));
+    return enrollment;
+  }
+
+  async getCourseAssignments(courseId: string): Promise<any[]> {
+    return await this.db
+      .select()
+      .from(enrollments)
+      .innerJoin(users, eq(enrollments.userId, users.id))
+      .where(and(
+        eq(enrollments.courseId, courseId),
+        sql`${enrollments.assignmentToken} IS NOT NULL` // Filter for assignments made via email
+      ))
+      .then(results => results.map(result => ({
+        enrollment: result.enrollments,
+        user: result.users,
+        course: { id: courseId } // Assuming course details are not fetched here
+      })));
+  }
+
+  async sendCourseReminders(courseId: string, pendingOnly?: boolean): Promise<number> {
+    // This is a placeholder. Actual implementation would involve an email service.
+    // It would query for enrollments and send emails.
+    console.log(`Sending reminders for course ${courseId}${pendingOnly ? ' (pending only)' : ''}`);
+    // Example: fetch enrollments and send emails
+    // const enrollmentsToSend = await this.db.select().from(enrollments).where(...)
+    // await emailService.sendReminders(enrollmentsToSend);
+    return 0; // Return count of emails sent
+  }
+
+  async cleanupExpiredAssignments(): Promise<number> {
+    // This method would clean up assignments that are past their expiry date
+    // and potentially have not been completed or acted upon.
+    // For now, it marks them as expired if not already.
+    const result = await this.db
+      .update(enrollments)
+      .set({ isExpired: true })
+      .where(and(
+        sql`${enrollments.expiresAt} < NOW()`,
+        eq(enrollments.isExpired, false)
+      ));
+    return result.rowCount || 0;
   }
 }
 

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertCourseSchema, insertQuizSchema, bulkAssignCourseSchema, bulkAssignUsersSchema } from "@shared/schema";
+import { insertUserSchema, insertCourseSchema, insertQuizSchema, bulkAssignCourseSchema, bulkAssignUsersSchema, bulkEmailAssignmentSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import multer from "multer";
@@ -53,6 +53,23 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Cleanup expired assignments on startup and periodically
+  const cleanupExpiredAssignments = async () => {
+    try {
+      const expiredCount = await storage.cleanupExpiredAssignments();
+      if (expiredCount > 0) {
+        console.log(`Cleaned up ${expiredCount} expired course assignments`);
+      }
+    } catch (error) {
+      console.error('Failed to cleanup expired assignments:', error);
+    }
+  };
+
+  // Run cleanup on startup
+  cleanupExpiredAssignments();
+  
+  // Run cleanup every hour
+  setInterval(cleanupExpiredAssignments, 60 * 60 * 1000);
   
   // Authentication routes
   app.post("/api/auth/admin-login", async (req, res) => {
@@ -704,6 +721,190 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error bulk assigning users:", error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+
+  // Email-based bulk assignment
+  app.post("/api/bulk-assign-emails", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = bulkEmailAssignmentSchema.parse(req.body);
+      const assignments = await storage.bulkAssignCourseByEmail(
+        validatedData.courseId, 
+        validatedData.emails, 
+        validatedData.deadlineDays
+      );
+
+      // Send emails to assigned users
+      const course = await storage.getCourse(validatedData.courseId);
+      for (const assignment of assignments) {
+        try {
+          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.accessToken}`;
+          
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+            to: assignment.assignedEmail,
+            subject: `Training Assignment: ${course?.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">Training Course Assignment</h2>
+                <p>You have been assigned to complete the following training course:</p>
+                <div style="border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <h3 style="color: #1e40af; margin-top: 0;">${course?.title}</h3>
+                  <p>${course?.description}</p>
+                  <p><strong>Deadline:</strong> ${assignment.deadline?.toLocaleDateString()}</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${loginLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Access Course
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  This link is valid until ${assignment.deadline?.toLocaleDateString()}. 
+                  Please complete the course before the deadline.
+                </p>
+              </div>
+            `,
+          });
+        } catch (emailError) {
+          console.error('Failed to send assignment email:', emailError);
+        }
+      }
+
+      res.json({ 
+        assignments, 
+        message: `Course assigned to ${validatedData.emails.length} email addresses successfully`
+      });
+    } catch (error) {
+      console.error("Error bulk assigning emails:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+
+  // Course access via token
+  app.get("/api/course-access/:token", async (req, res) => {
+    try {
+      const enrollment = await storage.getEnrollmentByToken(req.params.token);
+      
+      if (!enrollment || enrollment.status === "expired") {
+        return res.status(404).json({ message: "Invalid or expired access link" });
+      }
+
+      if (new Date() > enrollment.deadline!) {
+        await storage.cleanupExpiredAssignments();
+        return res.status(410).json({ message: "Course deadline has passed" });
+      }
+
+      const course = await storage.getCourse(enrollment.courseId);
+      res.json({ 
+        enrollment, 
+        course,
+        isFirstTime: !enrollment.userId 
+      });
+    } catch (error) {
+      console.error("Error accessing course:", error);
+      res.status(500).json({ message: "Failed to access course" });
+    }
+  });
+
+  // Complete profile and link user to enrollment
+  app.post("/api/complete-profile", async (req, res) => {
+    try {
+      const { token, userData } = req.body;
+      
+      const enrollment = await storage.getEnrollmentByToken(token);
+      if (!enrollment) {
+        return res.status(404).json({ message: "Invalid access token" });
+      }
+
+      // Create user account
+      const hashedPassword = await bcrypt.hash(`temp${Date.now()}`, 10);
+      const user = await storage.createUser({
+        ...userData,
+        email: enrollment.assignedEmail!,
+        password: hashedPassword,
+        role: "employee",
+        isActive: true
+      });
+
+      // Link enrollment to user
+      await storage.updateEnrollment(enrollment.id, {
+        userId: user.id,
+        status: "accessed"
+      });
+
+      // Create session
+      req.session.userId = user.id;
+      req.session.userRole = "employee";
+
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error("Error completing profile:", error);
+      res.status(500).json({ message: "Failed to complete profile" });
+    }
+  });
+
+  // Get course assignments (for HR tracking)
+  app.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching course assignments:", error);
+      res.status(500).json({ message: "Failed to fetch assignments" });
+    }
+  });
+
+  // Send reminders
+  app.post("/api/send-reminders/:courseId", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      const pendingAssignments = assignments.filter(a => 
+        ['pending', 'accessed'].includes(a.status) && 
+        new Date() < new Date(a.deadline)
+      );
+
+      const course = await storage.getCourse(req.params.courseId);
+      let sentCount = 0;
+
+      for (const assignment of pendingAssignments) {
+        try {
+          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.accessToken}`;
+          
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+            to: assignment.assignedEmail,
+            subject: `Reminder: Training Course Deadline Approaching - ${course?.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #dc2626;">Training Reminder</h2>
+                <p>This is a reminder that you have a pending training course that needs to be completed:</p>
+                <div style="border: 1px solid #fca5a5; background-color: #fef2f2; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <h3 style="color: #dc2626; margin-top: 0;">${course?.title}</h3>
+                  <p><strong>Deadline:</strong> ${new Date(assignment.deadline).toLocaleDateString()}</p>
+                  <p><strong>Status:</strong> ${assignment.status}</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${loginLink}" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Complete Course Now
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  Please complete this course before the deadline to avoid it being marked as expired.
+                </p>
+              </div>
+            `,
+          });
+          sentCount++;
+        } catch (emailError) {
+          console.error('Failed to send reminder email:', emailError);
+        }
+      }
+
+      await storage.sendCourseReminders(req.params.courseId);
+      res.json({ message: `Sent ${sentCount} reminder emails` });
+    } catch (error) {
+      console.error("Error sending reminders:", error);
+      res.status(500).json({ message: "Failed to send reminders" });
     }
   });
 

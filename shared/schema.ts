@@ -33,6 +33,9 @@ export const courses = pgTable("courses", {
   isComplianceCourse: boolean("is_compliance_course").default(false),
   renewalPeriodMonths: integer("renewal_period_months").default(3), // 3 or 4 months
   isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
+  // New fields for deadline management
+  defaultDeadlineDays: integer("default_deadline_days").default(30), // Default days to complete
+  reminderDays: integer("reminder_days").default(7), // Days before deadline to send reminder
 });
 
 export const quizzes = pgTable("quizzes", {
@@ -46,7 +49,7 @@ export const quizzes = pgTable("quizzes", {
 
 export const enrollments = pgTable("enrollments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
   courseId: varchar("course_id").references(() => courses.id).notNull(),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -56,6 +59,12 @@ export const enrollments = pgTable("enrollments", {
   expiresAt: timestamp("expires_at"), // When the certification expires
   isExpired: boolean("is_expired").default(false),
   renewalCount: integer("renewal_count").default(0), // Track how many times renewed
+  // New fields for bulk email assignment
+  assignedEmail: text("assigned_email"), // Email assigned before user creation
+  accessToken: text("access_token"), // Unique token for email access
+  deadline: timestamp("deadline"), // Course completion deadline
+  status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
+  remindersSent: integer("reminders_sent").default(0),
 });
 
 export const certificates = pgTable("certificates", {
@@ -154,6 +163,13 @@ export const bulkAssignCourseSchema = z.object({
 export const bulkAssignUsersSchema = z.object({
   userIds: z.array(z.string()).min(1, "At least one user must be selected"),
   courseIds: z.array(z.string()).min(1, "At least one course must be selected")
+});
+
+// Email bulk assignment schema
+export const bulkEmailAssignmentSchema = z.object({
+  courseId: z.string(),
+  emails: z.array(z.string().email()).min(1, "At least one email must be provided"),
+  deadlineDays: z.number().min(1).max(365).default(30),
 });
 
 // Types
