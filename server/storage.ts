@@ -652,16 +652,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async cleanupExpiredAssignments(): Promise<number> {
-    // Mark assignments as expired if past their deadline
-    const result = await this.db
-      .update(enrollments)
-      .set({ status: "expired" })
-      .where(and(
-        sql`${enrollments.deadline} < NOW()`,
-        sql`${enrollments.status} != 'expired'`,
-        sql`${enrollments.status} != 'completed'`
-      ));
-    return result.rowCount || 0;
+    try {
+      // Mark assignments as expired if past their deadline
+      const result = await this.db
+        .update(enrollments)
+        .set({ status: "expired" })
+        .where(and(
+          sql`${enrollments.deadline} < NOW()`,
+          sql`${enrollments.status} != 'expired'`,
+          sql`${enrollments.status} != 'completed'`
+        ));
+      return result.rowCount || 0;
+    } catch (error) {
+      // Handle case where deadline column doesn't exist yet
+      if (error.code === '42703') {
+        console.log('Deadline column not found, skipping cleanup');
+        return 0;
+      }
+      throw error;
+    }
   }
 }
 

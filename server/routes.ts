@@ -738,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const course = await storage.getCourse(validatedData.courseId);
       for (const assignment of assignments) {
         try {
-          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.accessToken}`;
+          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`;
           
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
@@ -868,7 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const assignment of pendingAssignments) {
         try {
-          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.accessToken}`;
+          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`;
           
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
