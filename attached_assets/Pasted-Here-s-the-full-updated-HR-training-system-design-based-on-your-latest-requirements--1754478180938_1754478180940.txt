@@ -1,0 +1,153 @@
+Here’s the **full updated HR training system design** based on **your latest requirements**:
+
+---
+
+## ✅ HR Training Platform – Finalized Flow & Features
+
+### 🎯 **Core Use Case**
+
+* HR creates a course.
+* Assigns it to a bulk list of employee email IDs.
+* Employees receive email with login link.
+* On clicking, user fills profile, completes course, gets certificate.
+* HR monitors completion, triggers reminders, clears user list after deadline.
+
+---
+
+## 👩‍🏫 HR Flow
+
+### 1. **Course Management**
+
+* HR can create/update/delete courses.
+* Each course has:
+
+  * Title, description, deadline
+  * Video(s), PDF(s), quiz
+  * Validity duration (e.g., 3 months)
+
+---
+
+### 2. **User Assignment**
+
+* HR clicks **“Assign Course”**
+* Enters comma-separated email list:
+
+  ```
+  employee1@example.com, employee2@example.com
+  ```
+* System saves assigned emails with:
+
+  * `status: pending`
+  * `course_id`, `email`, `deadline`
+
+> ✅ No user creation needed — only emails saved.
+
+---
+
+### 3. **Email Invite**
+
+* Each assigned email receives:
+
+  * Unique login link
+  * Link is valid until deadline
+  * Opens course directly
+
+---
+
+### 4. **Reminders**
+
+* HR can:
+
+  * View **Assigned Users List** for a course
+  * Filter: Pending, Completed
+  * Click **"Send Reminder"** to incomplete users
+
+---
+
+### 5. **Course Deadline Actions**
+
+* After deadline:
+
+  * Emails not completed → marked expired
+  * System **clears the assigned emails**
+  * Course becomes reusable for next cycle
+
+---
+
+## 👨‍💼 User Flow
+
+### 1. **Accessing the Course**
+
+* User clicks login link from email.
+* If valid:
+
+  * Prompted with **First-Time Profile Form**:
+
+    * Full Name
+    * Employee ID
+    * Designation
+    * Client Name
+    * Mobile Number
+    * Email (pre-filled, non-editable)
+
+> 🚫 Only assigned email can access. No magic link logic.
+
+---
+
+### 2. **Completing the Course**
+
+* Views training videos or PDFs.
+* Takes quiz (if present).
+* Upon successful completion:
+
+  * `status: completed` is saved
+  * Certificate is auto-generated
+
+---
+
+### 3. **Certificate Handling**
+
+* Certificate includes:
+
+  * Name, Course Title, Date, Unique ID
+* Sent via email to:
+
+  * Employee
+  * HR/Admin
+* Stored in server folder:
+  `certificates/course_title/employee_name.pdf`
+
+---
+
+## 📊 Course Analytics
+
+Available for HR per course:
+
+* Total Assigned
+* Completed
+* Pending
+* Expired
+* Send Reminder (Pending only)
+* Export to Excel (optional)
+
+---
+
+## 🔐 Access & Security
+
+* Only assigned email can access course.
+* No password, no signup — validation is email match.
+* Links valid until course deadline.
+
+---
+
+## 🧹 Data Cleanup
+
+* After deadline:
+
+  * Clear all assigned emails
+  * Free up course for next batch
+* Keeps system clean for quarterly reassignments
+
+---
+
+Let me know if you want a **UI wireframe, database ERD**, or **backend logic flow** next.
