@@ -597,6 +597,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = bulkAssignCourseSchema.parse(req.body);
       const enrollments = await storage.bulkAssignCourse(validatedData.courseId, validatedData.userIds);
       res.json({ enrollments, message: `Course assigned to ${validatedData.userIds.length} users successfully` });
+
+
+  // Bulk employee operations for large organizations
+  app.post("/api/bulk-import-employees", requireAdmin, async (req, res) => {
+    try {
+      const { employees } = req.body; // Array of employee data
+      
+      if (!Array.isArray(employees) || employees.length === 0) {
+        return res.status(400).json({ message: "Employee data array is required" });
+      }
+
+      const results = {
+        created: 0,
+        updated: 0,
+        errors: []
+      };
+
+      for (const empData of employees) {
+        try {
+          // Check if employee exists by employeeId or email
+          const existingUser = await storage.getUserByEmail(empData.email) || 
+                              await storage.getUserByEmployeeId(empData.employeeId);
+          
+          if (existingUser) {
+            // Update existing employee
+            await storage.updateUser(existingUser.id, {
+              ...empData,
+              role: "employee",
+              isActive: empData.isActive !== false // Default to active
+            });
+            results.updated++;
+          } else {
+            // Create new employee
+            await storage.createUser({
+              ...empData,
+              role: "employee",
+              password: empData.password || await bcrypt.hash(`temp${Date.now()}`, 10),
+              isActive: empData.isActive !== false
+            });
+            results.created++;
+            
+            // Auto-enroll in compliance courses
+            await storage.autoEnrollInComplianceCourses(empData.employeeId || empData.email);
+          }
+        } catch (error) {
+          results.errors.push({
+            employee: empData.email || empData.employeeId,
+            error: error.message
+          });
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "Bulk import failed", error: error.message });
+    }
+  });
+
+  app.post("/api/deactivate-employees", requireAdmin, async (req, res) => {
+    try {
+      const { employeeIds } = req.body;
+      
+      const results = await storage.deactivateEmployees(employeeIds);
+      res.json({ message: `Deactivated ${results} employees successfully` });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to deactivate employees" });
+    }
+  });
+
+  app.get("/api/compliance-status", requireAdmin, async (req, res) => {
+    try {
+      const complianceReport = await storage.getComplianceReport();
+      res.json(complianceReport);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to generate compliance report" });
+    }
+  });
+
+  app.post("/api/renew-expired-certifications", requireAdmin, async (req, res) => {
+    try {
+      const { courseId, userIds } = req.body;
+      
+      const renewedEnrollments = await storage.renewExpiredCertifications(courseId, userIds);
+      res.json({ 
+        message: `Renewed ${renewedEnrollments.length} certifications`,
+        renewedEnrollments 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to renew certifications" });
+    }
+  });
+
+
     } catch (error) {
       console.error("Error bulk assigning course:", error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });

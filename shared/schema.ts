@@ -30,6 +30,9 @@ export const courses = pgTable("courses", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   isActive: boolean("is_active").default(true),
+  isComplianceCourse: boolean("is_compliance_course").default(false),
+  renewalPeriodMonths: integer("renewal_period_months").default(3), // 3 or 4 months
+  isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
 });
 
 export const quizzes = pgTable("quizzes", {
@@ -50,6 +53,9 @@ export const enrollments = pgTable("enrollments", {
   progress: integer("progress").default(0), // percentage 0-100
   quizScore: integer("quiz_score"),
   certificateIssued: boolean("certificate_issued").default(false),
+  expiresAt: timestamp("expires_at"), // When the certification expires
+  isExpired: boolean("is_expired").default(false),
+  renewalCount: integer("renewal_count").default(0), // Track how many times renewed
 });
 
 export const certificates = pgTable("certificates", {

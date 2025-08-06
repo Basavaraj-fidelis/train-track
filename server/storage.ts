@@ -420,3 +420,154 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage(db);
+
+
+  async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
+    const [user] = await this.db.select().from(users).where(eq(users.employeeId, employeeId));
+    return user || undefined;
+  }
+
+  async autoEnrollInComplianceCourses(employeeIdentifier: string): Promise<void> {
+    // Get all compliance courses
+    const complianceCourses = await this.db
+      .select()
+      .from(courses)
+      .where(and(
+        eq(courses.isComplianceCourse, true),
+        eq(courses.isAutoEnrollNewEmployees, true),
+        eq(courses.isActive, true)
+      ));
+
+    // Get user
+    const user = await this.getUserByEmail(employeeIdentifier) || 
+                  await this.getUserByEmployeeId(employeeIdentifier);
+    
+    if (!user) return;
+
+    // Enroll in each compliance course
+    for (const course of complianceCourses) {
+      const existingEnrollment = await this.getEnrollment(user.id, course.id);
+      if (!existingEnrollment) {
+        const expirationDate = new Date();
+        expirationDate.setMonth(expirationDate.getMonth() + (course.renewalPeriodMonths || 3));
+        
+        await this.createEnrollment({
+          userId: user.id,
+          courseId: course.id,
+          expiresAt: expirationDate
+        });
+      }
+    }
+  }
+
+  async deactivateEmployees(employeeIds: string[]): Promise<number> {
+    const result = await this.db
+      .update(users)
+      .set({ isActive: false })
+      .where(sql`${users.id} = ANY(ARRAY[${employeeIds.map(id => `'${id}'`).join(',')}])`);
+    
+    return result.rowCount || 0;
+  }
+
+  async getComplianceReport(): Promise<{
+    totalEmployees: number;
+    activeEmployees: number;
+    expiredCertifications: number;
+    expiringInNext30Days: number;
+    complianceCourses: any[];
+    expiringEmployees: any[];
+  }> {
+    const [totalEmp] = await this.db.select({ count: sql`count(*)` }).from(users).where(eq(users.role, "employee"));
+    const [activeEmp] = await this.db.select({ count: sql`count(*)` }).from(users).where(and(eq(users.role, "employee"), eq(users.isActive, true)));
+    
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+    const [expiredCerts] = await this.db.select({ count: sql`count(*)` })
+      .from(enrollments)
+      .where(and(
+        sql`${enrollments.expiresAt} < NOW()`,
+        eq(enrollments.isExpired, false)
+      ));
+
+    const [expiringCerts] = await this.db.select({ count: sql`count(*)` })
+      .from(enrollments)
+      .where(and(
+        sql`${enrollments.expiresAt} BETWEEN NOW() AND '${thirtyDaysFromNow.toISOString()}'`,
+        eq(enrollments.isExpired, false)
+      ));
+
+    const complianceCourses = await this.db.select().from(courses).where(eq(courses.isComplianceCourse, true));
+
+    const expiringEmployees = await this.db
+      .select()
+      .from(enrollments)
+      .innerJoin(users, eq(enrollments.userId, users.id))
+      .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .where(and(
+        sql`${enrollments.expiresAt} BETWEEN NOW() AND '${thirtyDaysFromNow.toISOString()}'`,
+        eq(enrollments.isExpired, false),
+        eq(users.isActive, true)
+      ));
+
+    return {
+      totalEmployees: Number(totalEmp.count),
+      activeEmployees: Number(activeEmp.count),
+      expiredCertifications: Number(expiredCerts.count),
+      expiringInNext30Days: Number(expiringCerts.count),
+      complianceCourses,
+      expiringEmployees: expiringEmployees.map(result => ({
+        ...result.enrollments,
+        user: result.users,
+        course: result.courses
+      }))
+    };
+  }
+
+  async renewExpiredCertifications(courseId: string, userIds?: string[]): Promise<Enrollment[]> {
+    const whereConditions = [
+      eq(enrollments.courseId, courseId),
+      sql`${enrollments.expiresAt} <= NOW()`
+    ];
+
+    if (userIds && userIds.length > 0) {
+      whereConditions.push(
+        sql`${enrollments.userId} = ANY(ARRAY[${userIds.map(id => `'${id}'`).join(',')}])`
+      );
+    }
+
+    // Get course renewal period
+    const course = await this.getCourse(courseId);
+    const renewalPeriod = course?.renewalPeriodMonths || 3;
+
+    // Reset expired enrollments
+    const newExpirationDate = new Date();
+    newExpirationDate.setMonth(newExpirationDate.getMonth() + renewalPeriod);
+
+    const renewed = await this.db
+      .update(enrollments)
+      .set({
+        progress: 0,
+        quizScore: null,
+        completedAt: null,
+        certificateIssued: false,
+        expiresAt: newExpirationDate,
+        isExpired: false,
+        renewalCount: sql`${enrollments.renewalCount} + 1`
+      })
+      .where(and(...whereConditions))
+      .returning();
+
+    return renewed;
+  }
+
+  async markExpiredCertifications(): Promise<void> {
+    await this.db
+      .update(enrollments)
+      .set({ isExpired: true })
+      .where(and(
+        sql`${enrollments.expiresAt} < NOW()`,
+        eq(enrollments.isExpired, false)
+      ));
+  }
+
