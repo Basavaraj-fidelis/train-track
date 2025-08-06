@@ -31,11 +31,11 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       description: `You scored ${score}%. ${score >= (quiz?.passingScore || 70) ? "Congratulations on passing!" : "Please try again to pass."}`,
       variant: score >= (quiz?.passingScore || 70) ? "default" : "destructive",
     });
-    
+
     // Refresh enrollments
     queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
     queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
-    
+
     setShowQuiz(false);
   };
 
@@ -87,9 +87,9 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 )}
               </div>
             </div>
-            
+
             <p className="text-gray-700">{course.description}</p>
-            
+
             {enrollment.progress < 100 && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -99,7 +99,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 <Progress value={enrollment.progress} />
               </div>
             )}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="border border-gray-200 rounded-lg p-4">
                 <h4 className="font-medium text-gray-900 mb-2">Learning Objectives</h4>
@@ -127,6 +127,16 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                       <span>{enrollment.quizScore}%</span>
                     </div>
                   )}
+                  <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`font-medium ${
+                        enrollment.certificateIssued ? 'text-green-600' : 
+                        enrollment.quizScore ? 'text-orange-600' : 'text-blue-600'
+                      }`}>
+                        {enrollment.certificateIssued ? 'Completed' : 
+                         enrollment.quizScore ? 'Needs Retake' : 'In Progress'}
+                      </span>
+                    </div>
                 </div>
               </div>
             </div>
@@ -145,7 +155,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               <p className="text-gray-600">
                 Complete this assessment to test your understanding and earn your certificate.
               </p>
-              
+
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <h4 className="font-medium text-gray-900">{quiz.title}</h4>
@@ -165,7 +175,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   {enrollment.quizScore ? "Retake Quiz" : "Start Quiz"}
                 </Button>
               </div>
-              
+
               {enrollment.certificateIssued && (
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center justify-between">

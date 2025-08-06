@@ -96,10 +96,12 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
           </CardHeader>
           <CardContent className="text-center space-y-6">
             <div className="space-y-4">
-              <div className="text-6xl font-bold text-primary">{score}%</div>
+              <div className={`text-6xl font-bold ${score >= quiz.passingScore ? 'text-green-600' : 'text-orange-600'}`}>
+                {score}%
+              </div>
               <div className="space-y-2">
                 <p className="text-lg font-medium">
-                  {score >= quiz.passingScore ? "Congratulations! You passed!" : "You need to retake the quiz"}
+                  {score >= quiz.passingScore ? "Congratulations! You passed!" : "Don't give up! You can retake this quiz"}
                 </p>
                 <p className="text-gray-600">
                   You answered {questions.filter((_: any, index: number) => {
@@ -178,7 +180,7 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               {currentQ.question}
             </h3>
-            
+
             <RadioGroup
               value={answers[currentQuestion] || ""}
               onValueChange={(value) => handleAnswerChange(currentQuestion, value)}

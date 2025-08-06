@@ -412,16 +412,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Not enrolled in this course" });
       }
       
-      // Update enrollment with quiz score and completion
+      // Update enrollment with quiz score and completion only if passing
+      const passingScore = quiz?.passingScore || 70;
+      const isPassing = score >= passingScore;
+      
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: 100,
-        completedAt: new Date(),
+        progress: isPassing ? 100 : 90, // Mark as 90% if not passing to allow retake
+        completedAt: isPassing ? new Date() : null, // Only mark completed if passing
       });
       
       // Generate certificate if passing score
       const quiz = await storage.getQuizByCourseId(courseId);
-      if (quiz && score >= (quiz.passingScore || 70)) {
+      if (quiz && isPassing) {
         const certificate = await storage.createCertificate({
           userId: req.session.userId,
           courseId,
@@ -456,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.json({ success: true, score, certificateIssued: score >= (quiz?.passingScore || 70) });
+      res.json({ success: true, score, certificateIssued: isPassing, isPassing });
     } catch (error) {
       res.status(500).json({ message: "Failed to submit quiz" });
     }

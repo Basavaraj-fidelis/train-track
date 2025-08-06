@@ -64,8 +64,8 @@ export default function EmployeeDashboard() {
     );
   }
 
-  const completedCourses = enrollments?.filter((e: any) => e.completedAt)?.length || 0;
   const totalCourses = enrollments?.length || 0;
+  const completedCourses = enrollments?.filter((e: any) => e.certificateIssued).length || 0;
   const certificateCount = certificates?.length || 0;
 
   return (
@@ -250,8 +250,12 @@ export default function EmployeeDashboard() {
                               <div key={enrollment.id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="font-medium text-gray-900">{enrollment.course.title}</h4>
-                                  <Badge variant={enrollment.progress > 0 ? "default" : "secondary"}>
-                                    {enrollment.progress > 0 ? "In Progress" : "Not Started"}
+                                  <Badge variant={
+                                    enrollment.certificateIssued ? "default" : 
+                                    enrollment.quizScore ? "destructive" : "secondary"
+                                  }>
+                                    {enrollment.certificateIssued ? "Completed" : 
+                                     enrollment.quizScore ? "Needs Retake" : "In Progress"}
                                   </Badge>
                                 </div>
                                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">{enrollment.course.description}</p>
@@ -314,7 +318,7 @@ export default function EmployeeDashboard() {
                 {activeSection === "courses" && (
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">My Courses</h2>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {enrollments?.map((enrollment: any) => (
                         <Card key={enrollment.id}>
@@ -323,11 +327,11 @@ export default function EmployeeDashboard() {
                               <Play className="text-gray-400" size={32} />
                               <div className="absolute top-2 left-2">
                                 <Badge variant={
-                                  enrollment.completedAt ? "default" : 
-                                  enrollment.progress > 0 ? "secondary" : "outline"
+                                  enrollment.certificateIssued ? "default" : 
+                                  enrollment.quizScore ? "destructive" : "secondary"
                                 }>
-                                  {enrollment.completedAt ? "Completed" : 
-                                   enrollment.progress > 0 ? "In Progress" : "New"}
+                                  {enrollment.certificateIssued ? "Completed" : 
+                                   enrollment.quizScore ? "Needs Retake" : "In Progress"}
                                 </Badge>
                               </div>
                             </div>
@@ -368,7 +372,7 @@ export default function EmployeeDashboard() {
                 {activeSection === "certificates" && (
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">My Certificates</h2>
-                    
+
                     <div className="space-y-4">
                       {certificates?.map((cert: any) => (
                         <Card key={cert.id}>
@@ -408,7 +412,7 @@ export default function EmployeeDashboard() {
                 {activeSection === "profile" && (
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">My Profile</h2>
-                    
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       <div className="lg:col-span-1">
                         <Card>
@@ -422,7 +426,7 @@ export default function EmployeeDashboard() {
                               <h3 className="text-xl font-semibold text-gray-900">{authData?.user?.name}</h3>
                               <p className="text-gray-600">{authData?.user?.position || "Employee"}</p>
                             </div>
-                            
+
                             <div className="space-y-4 mt-6">
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -463,7 +467,7 @@ export default function EmployeeDashboard() {
                                 <div className="text-sm text-gray-600">Certificates</div>
                               </div>
                             </div>
-                            
+
                             <div className="space-y-3">
                               {enrollments?.map((enrollment: any) => (
                                 <div key={enrollment.id}>
