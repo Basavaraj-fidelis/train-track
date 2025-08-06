@@ -419,10 +419,7 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage(db);
-
-
-  async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
+async getUserByEmployeeId(employeeId: string): Promise<User | undefined> {
     const [user] = await this.db.select().from(users).where(eq(users.employeeId, employeeId));
     return user || undefined;
   }
@@ -570,4 +567,7 @@ export const storage = new DatabaseStorage(db);
         eq(enrollments.isExpired, false)
       ));
   }
+}
+
+export const storage = new DatabaseStorage(db);
 
