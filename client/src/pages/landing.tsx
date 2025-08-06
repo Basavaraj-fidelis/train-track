@@ -1,52 +1,108 @@
-import { Card, CardContent } from "@/components/ui/card";
+
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Bus, User } from "lucide-react";
-import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, BookOpen, Award, TrendingUp } from "lucide-react";
 
 export default function Landing() {
+  const [location, setLocation] = useLocation();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
-            <GraduationCap className="text-white" size={32} />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <BookOpen className="h-8 w-8 text-blue-600 mr-2" />
+              <h1 className="text-2xl font-bold text-gray-900">TrainTrack</h1>
+            </div>
+            <div className="flex space-x-4">
+              <Button variant="outline" onClick={() => setLocation('/employee-login')}>
+                Employee Login
+              </Button>
+              <Button onClick={() => setLocation('/hr-login')}>
+                Admin Login
+              </Button>
+            </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">TrainTrack</h1>
-          <p className="text-xl text-gray-600">Professional Training Management Portal</p>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center">
+          <h1 className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
+            <span className="block">Employee Training</span>
+            <span className="block text-blue-600">Made Simple</span>
+          </h1>
+          <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+            Streamline your training programs with our comprehensive learning management system. 
+            Create courses, track progress, and issue certificates with ease.
+          </p>
+          <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
+            <div className="rounded-md shadow">
+              <Button size="lg" onClick={() => setLocation('/hr-login')}>
+                Get Started
+              </Button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 rounded-lg mb-4">
-                  <Bus className="text-primary" size={24} />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">HR Administrator</h3>
-                <p className="text-gray-600 mb-6">Manage courses, users, and track training progress</p>
-                <Link href="/hr-login">
-                  <Button className="w-full">Admin Portal</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Features */}
+        <div className="mt-24">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader>
+                <Users className="h-8 w-8 text-blue-600 mx-auto" />
+                <CardTitle className="text-center">User Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 text-center">
+                  Manage employees and administrators with role-based access control.
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mb-4">
-                  <User className="text-green-600" size={24} />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Employee</h3>
-                <p className="text-gray-600 mb-6">Access your training courses and track your progress</p>
-                <Link href="/employee-login">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">Employee Portal</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <BookOpen className="h-8 w-8 text-blue-600 mx-auto" />
+                <CardTitle className="text-center">Course Creation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 text-center">
+                  Create engaging courses with videos, quizzes, and assessments.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <TrendingUp className="h-8 w-8 text-blue-600 mx-auto" />
+                <CardTitle className="text-center">Progress Tracking</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 text-center">
+                  Monitor employee progress and completion rates in real-time.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <Award className="h-8 w-8 text-blue-600 mx-auto" />
+                <CardTitle className="text-center">Certificates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 text-center">
+                  Issue digital certificates upon successful course completion.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

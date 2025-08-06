@@ -234,8 +234,7 @@ export default function EnhancedHRDashboard() {
   };
 
   const handleEditCourse = (course: any) => {
-    setCourseToEdit(course); // Set the course to be edited
-    setLocation('/create-course'); // Navigate to the course creation page
+    setLocation(`/create-course?edit=${course.id}`);
   };
 
   const handleDeleteCourse = async (courseId: string) => {

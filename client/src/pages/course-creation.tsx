@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 
 interface QuizQuestion {
   question: string;
@@ -16,7 +16,6 @@ interface QuizQuestion {
   correctAnswer: number;
 }
 
-// Define the structure for form data
 interface CourseFormData {
   title: string;
   description: string;
@@ -31,17 +30,11 @@ export default function CourseCreation() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check if we're editing
-  const urlParams = new URLSearchParams(location.split('?')[1]);
+  const urlParams = new URLSearchParams(location.split('?')[1] || '');
   const editCourseId = urlParams.get('edit');
   const isEditing = !!editCourseId;
 
-  // Fetch existing course data if editing
-  const { data: existingCourse } = useQuery({
-    queryKey: [`/api/courses/${editCourseId}`],
-    enabled: isEditing && !!editCourseId,
-  });
-
-  // Check authentication on component mount
+  // Check authentication
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ['/api/auth/me'],
     queryFn: async () => {
@@ -55,7 +48,49 @@ export default function CourseCreation() {
     }
   });
 
-  if (authLoading) {
+  // Fetch existing course data if editing
+  const { data: existingCourse, isLoading: courseLoading } = useQuery({
+    queryKey: [`/api/courses/${editCourseId}`],
+    enabled: isEditing && !!editCourseId,
+    queryFn: async () => {
+      const response = await fetch(`/api/courses/${editCourseId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch course');
+      }
+      return response.json();
+    }
+  });
+
+  // Form data
+  const [courseData, setCourseData] = useState<CourseFormData>({
+    title: "",
+    description: "",
+    videoFile: null,
+    quizQuestions: []
+  });
+
+  // Load existing course data when editing
+  useEffect(() => {
+    if (isEditing && existingCourse && !courseLoading) {
+      console.log('Loading existing course data:', existingCourse);
+      setCourseData({
+        title: existingCourse.title || "",
+        description: existingCourse.description || "",
+        videoFile: null, // Keep null for existing video
+        quizQuestions: existingCourse.questions || []
+      });
+    }
+  }, [isEditing, existingCourse, courseLoading]);
+
+  const [newQuestion, setNewQuestion] = useState({
+    question: "",
+    options: ["", "", "", ""],
+    correctAnswer: 0
+  });
+
+  if (authLoading || (isEditing && courseLoading)) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
@@ -68,43 +103,27 @@ export default function CourseCreation() {
     </div>;
   }
 
-
-  // Form data
-  const [courseData, setCourseData] = useState<CourseFormData>({
-    title: "",
-    description: "",
-    videoFile: null,
-    quizQuestions: []
-  });
-
-  // Load existing course data when editing
-  useEffect(() => {
-    if (isEditing && existingCourse) {
-      setCourseData({
-        title: existingCourse.title || "",
-        description: existingCourse.description || "",
-        videoFile: null, // Keep null for existing video
-        quizQuestions: existingCourse.questions || []
-      });
-    }
-  }, [isEditing, existingCourse]);
-
-  const [newQuestion, setNewQuestion] = useState({
-    question: "",
-    options: ["", "", "", ""],
-    correctAnswer: 0
-  });
+  if (isEditing && !existingCourse && !courseLoading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold mb-4">Course Not Found</h2>
+        <p>The course you're trying to edit doesn't exist.</p>
+        <Button onClick={() => setLocation('/enhanced-hr-dashboard')} className="mt-4">
+          Back to Dashboard
+        </Button>
+      </div>
+    </div>;
+  }
 
   const steps = [
-    { number: 1, title: "Course Name", icon: FileVideo },
-    { number: 2, title: "Description", icon: FileVideo },
-    { number: 3, title: "Video Upload", icon: Upload },
-    { number: 4, title: "Quiz Creation", icon: Play },
-    { number: 5, title: "Complete", icon: CheckCircle }
+    { number: 1, title: "Course Details", icon: FileVideo },
+    { number: 2, title: "Video Upload", icon: Upload },
+    { number: 3, title: "Quiz Creation", icon: Play },
+    { number: 4, title: "Review & Complete", icon: CheckCircle }
   ];
 
   const handleNext = () => {
-    if (currentStep < 5) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -133,6 +152,12 @@ export default function CourseCreation() {
         options: ["", "", "", ""],
         correctAnswer: 0
       });
+    } else {
+      toast({
+        title: "Error",
+        description: "Please fill in the question and all options",
+        variant: "destructive"
+      });
     }
   };
 
@@ -147,16 +172,16 @@ export default function CourseCreation() {
     setIsSubmitting(true);
     try {
       // Validate required fields
-      if (!courseData.title || !courseData.title.trim()) {
+      if (!courseData.title?.trim()) {
         throw new Error("Course title is required");
       }
 
-      if (!courseData.description || !courseData.description.trim()) {
+      if (!courseData.description?.trim()) {
         throw new Error("Course description is required");
       }
 
       if (!courseData.videoFile && !isEditing) {
-        throw new Error("Video file is required");
+        throw new Error("Video file is required for new courses");
       }
 
       if (courseData.quizQuestions.length === 0) {
@@ -183,7 +208,7 @@ export default function CourseCreation() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to submit course');
+        throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} course`);
       }
 
       toast({
@@ -206,10 +231,9 @@ export default function CourseCreation() {
 
   const canProceed = () => {
     switch (currentStep) {
-      case 1: return courseData.title && courseData.title.trim() !== "";
-      case 2: return courseData.description && courseData.description.trim() !== "";
-      case 3: return courseData.videoFile !== null || (isEditing && existingCourse?.videoPath);
-      case 4: return courseData.quizQuestions.length > 0;
+      case 1: return courseData.title?.trim() && courseData.description?.trim();
+      case 2: return courseData.videoFile !== null || (isEditing && existingCourse?.videoPath);
+      case 3: return courseData.quizQuestions.length > 0;
       default: return true;
     }
   };
@@ -228,14 +252,14 @@ export default function CourseCreation() {
             Back to Dashboard
           </Button>
           <h1 className="text-3xl font-bold text-gray-900">
-            {isEditing ? 'Edit Course' : 'Create New Course'}
+            {isEditing ? `Edit Course: ${existingCourse?.title || ''}` : 'Create New Course'}
           </h1>
         </div>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-8">
-          {steps.map((step) => (
-            <div key={step.number} className="flex flex-col items-center">
+          {steps.map((step, index) => (
+            <div key={step.number} className="flex flex-col items-center flex-1">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
                 currentStep >= step.number ? 'bg-blue-600' : 'bg-gray-300'
               }`}>
@@ -246,6 +270,11 @@ export default function CourseCreation() {
                 )}
               </div>
               <span className="text-sm mt-2 text-center">{step.title}</span>
+              {index < steps.length - 1 && (
+                <div className={`h-1 w-full mt-4 ${
+                  currentStep > step.number ? 'bg-blue-600' : 'bg-gray-200'
+                }`} />
+              )}
             </div>
           ))}
         </div>
@@ -259,7 +288,7 @@ export default function CourseCreation() {
             {currentStep === 1 && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="title">Course Title</Label>
+                  <Label htmlFor="title">Course Title *</Label>
                   <Input
                     id="title"
                     value={courseData.title}
@@ -268,13 +297,8 @@ export default function CourseCreation() {
                     className="mt-1"
                   />
                 </div>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="description">Course Description</Label>
+                  <Label htmlFor="description">Course Description *</Label>
                   <Textarea
                     id="description"
                     value={courseData.description}
@@ -286,10 +310,10 @@ export default function CourseCreation() {
               </div>
             )}
 
-            {currentStep === 3 && (
+            {currentStep === 2 && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="video">Upload Course Video</Label>
+                  <Label htmlFor="video">Course Video {!isEditing && '*'}</Label>
                   <div className="mt-1 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <Upload className="mx-auto h-12 w-12 text-gray-400" />
                     <div className="mt-4">
@@ -313,7 +337,7 @@ export default function CourseCreation() {
                     <p className="mt-1 text-xs text-gray-500">
                       MP4, AVI, MOV up to 500MB
                       {isEditing && existingCourse?.videoPath && !courseData.videoFile && (
-                        <span className="block text-blue-600">Leave empty to keep current video</span>
+                        <span className="block text-blue-600 mt-2">Leave empty to keep current video</span>
                       )}
                     </p>
                   </div>
@@ -321,51 +345,57 @@ export default function CourseCreation() {
               </div>
             )}
 
-            {currentStep === 4 && (
+            {currentStep === 3 && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Create Quiz Questions</h3>
+                  <h3 className="text-lg font-semibold mb-4">Quiz Questions</h3>
 
                   {/* Existing Questions */}
-                  {courseData.quizQuestions.map((q, index) => (
-                    <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium">Question {index + 1}</h4>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => removeQuestion(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                      <p className="mb-2">{q.question}</p>
-                      <ul className="list-none space-y-1">
-                        {q.options.map((option: string, optIndex: number) => (
-                          <li key={optIndex} className={optIndex === q.correctAnswer ? "text-green-600 font-medium" : ""}>
-                            {String.fromCharCode(65 + optIndex)}. {option} {optIndex === q.correctAnswer && "✓"}
-                          </li>
-                        ))}
-                      </ul>
+                  {courseData.quizQuestions.length > 0 && (
+                    <div className="space-y-4 mb-6">
+                      <h4 className="font-medium">Added Questions ({courseData.quizQuestions.length})</h4>
+                      {courseData.quizQuestions.map((q, index) => (
+                        <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="flex justify-between items-start mb-2">
+                            <h5 className="font-medium">Question {index + 1}</h5>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => removeQuestion(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                          <p className="mb-2">{q.question}</p>
+                          <ul className="list-none space-y-1">
+                            {q.options.map((option: string, optIndex: number) => (
+                              <li key={optIndex} className={optIndex === q.correctAnswer ? "text-green-600 font-medium" : ""}>
+                                {String.fromCharCode(65 + optIndex)}. {option} {optIndex === q.correctAnswer && "✓"}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
 
                   {/* Add New Question */}
                   <div className="border rounded-lg p-4">
                     <h4 className="font-medium mb-4">Add New Question</h4>
                     <div className="space-y-4">
                       <div>
-                        <Label>Question</Label>
-                        <Input
+                        <Label>Question *</Label>
+                        <Textarea
                           value={newQuestion.question}
                           onChange={(e) => setNewQuestion(prev => ({ ...prev, question: e.target.value }))}
                           placeholder="Enter your question"
+                          rows={2}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {newQuestion.options.map((option, index) => (
                           <div key={index}>
-                            <Label>Option {String.fromCharCode(65 + index)}</Label>
+                            <Label>Option {String.fromCharCode(65 + index)} *</Label>
                             <Input
                               value={option}
                               onChange={(e) => {
@@ -379,7 +409,7 @@ export default function CourseCreation() {
                         ))}
                       </div>
                       <div>
-                        <Label>Correct Answer</Label>
+                        <Label>Correct Answer *</Label>
                         <select
                           value={newQuestion.correctAnswer}
                           onChange={(e) => setNewQuestion(prev => ({ ...prev, correctAnswer: parseInt(e.target.value) }))}
@@ -401,14 +431,19 @@ export default function CourseCreation() {
               </div>
             )}
 
-            {currentStep === 5 && (
+            {currentStep === 4 && (
               <div className="text-center space-y-4">
                 <CheckCircle className="mx-auto h-16 w-16 text-green-600" />
-                <h3 className="text-xl font-semibold">Course Ready to Create!</h3>
+                <h3 className="text-xl font-semibold">
+                  {isEditing ? 'Course Ready to Update!' : 'Course Ready to Create!'}
+                </h3>
                 <div className="bg-gray-50 p-4 rounded-lg text-left">
                   <p><strong>Title:</strong> {courseData.title}</p>
                   <p><strong>Description:</strong> {courseData.description}</p>
-                  <p><strong>Video:</strong> {courseData.videoFile?.name}</p>
+                  <p><strong>Video:</strong> {
+                    courseData.videoFile?.name || 
+                    (isEditing && existingCourse?.videoPath ? `Current: ${existingCourse.videoPath}` : 'No video')
+                  }</p>
                   <p><strong>Quiz Questions:</strong> {courseData.quizQuestions.length}</p>
                 </div>
               </div>
@@ -426,7 +461,7 @@ export default function CourseCreation() {
             Previous
           </Button>
 
-          {currentStep < 5 ? (
+          {currentStep < 4 ? (
             <Button 
               onClick={handleNext}
               disabled={!canProceed()}
@@ -440,7 +475,7 @@ export default function CourseCreation() {
               className="bg-green-600 hover:bg-green-700"
             >
               {isSubmitting 
-                ? (isEditing ? "Updating Course..." : "Creating Course...") 
+                ? (isEditing ? "Updating..." : "Creating...") 
                 : (isEditing ? "Update Course" : "Create Course")}
             </Button>
           )}
