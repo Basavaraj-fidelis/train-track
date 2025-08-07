@@ -995,7 +995,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignments = await storage.getCourseAssignments(req.params.courseId);
       const pendingAssignments = assignments.filter(a => 
         ['pending', 'accessed'].includes(a.status) && 
-        new Date() < new Date(a.deadline)
+        new Date() < new Date(a.deadline) &&
+        !a.completedAt // Exclude users who have completed the course
       );
 
       const course = await storage.getCourse(req.params.courseId);

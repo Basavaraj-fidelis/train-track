@@ -66,7 +66,9 @@ export default function CourseAssignmentsTracker({
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const pendingCount = assignments?.filter((a: any) => ["pending", "accessed"].includes(a.status))?.length || 0;
+  const pendingCount = assignments?.filter(assignment => 
+    ["pending", "accessed"].includes(assignment.status) && !assignment.completedAt
+  )?.length || 0;
   const completedCount = assignments?.filter((a: any) => a.completedAt)?.length || 0;
   const expiredCount = assignments?.filter((a: any) => a.status === "expired")?.length || 0;
 
