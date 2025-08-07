@@ -1,0 +1,90 @@
+Video completed, refetching quiz...
+course-viewer.tsx:32 Fetching quiz for course: undefined
+queryClient.ts:15  GET https://3f9d3d16-536f-455a-8939-b176e7a10cc5-00-1cndmd4zd3fv.sisko.replit.dev/api/courses/undefined/quiz 404 (Not Found)
+apiRequest @ queryClient.ts:15
+queryFn @ course-viewer.tsx:33
+fetchFn @ @tanstack_react-query.js?v=fe154da9:840
+run @ @tanstack_react-query.js?v=fe154da9:494
+start @ @tanstack_react-query.js?v=fe154da9:536
+fetch @ @tanstack_react-query.js?v=fe154da9:926
+executeFetch_fn @ @tanstack_react-query.js?v=fe154da9:2211
+fetch @ @tanstack_react-query.js?v=fe154da9:2011
+refetch @ @tanstack_react-query.js?v=fe154da9:2001
+(anonymous) @ course-viewer.tsx:173
+commitHookEffectListMount @ chunk-WERSD76P.js?v=fe154da9:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=fe154da9:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=fe154da9:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=fe154da9:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=fe154da9:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=fe154da9:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=fe154da9:19447
+commitRootImpl @ chunk-WERSD76P.js?v=fe154da9:19416
+commitRoot @ chunk-WERSD76P.js?v=fe154da9:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=fe154da9:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=fe154da9:9119
+(anonymous) @ chunk-WERSD76P.js?v=fe154da9:18627
+course-viewer.tsx:32 Fetching quiz for course: undefined
+queryClient.ts:15  GET https://3f9d3d16-536f-455a-8939-b176e7a10cc5-00-1cndmd4zd3fv.sisko.replit.dev/api/courses/undefined/quiz 404 (Not Found)
+apiRequest @ queryClient.ts:15
+queryFn @ course-viewer.tsx:33
+fetchFn @ @tanstack_react-query.js?v=fe154da9:840
+run @ @tanstack_react-query.js?v=fe154da9:494
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:519
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:515
+Promise.catch
+run @ @tanstack_react-query.js?v=fe154da9:498
+start @ @tanstack_react-query.js?v=fe154da9:536
+fetch @ @tanstack_react-query.js?v=fe154da9:926
+executeFetch_fn @ @tanstack_react-query.js?v=fe154da9:2211
+fetch @ @tanstack_react-query.js?v=fe154da9:2011
+refetch @ @tanstack_react-query.js?v=fe154da9:2001
+(anonymous) @ course-viewer.tsx:173
+commitHookEffectListMount @ chunk-WERSD76P.js?v=fe154da9:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=fe154da9:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=fe154da9:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=fe154da9:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=fe154da9:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=fe154da9:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=fe154da9:19447
+commitRootImpl @ chunk-WERSD76P.js?v=fe154da9:19416
+commitRoot @ chunk-WERSD76P.js?v=fe154da9:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=fe154da9:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=fe154da9:9119
+(anonymous) @ chunk-WERSD76P.js?v=fe154da9:18627
+course-viewer.tsx:32 Fetching quiz for course: undefined
+queryClient.ts:15  GET https://3f9d3d16-536f-455a-8939-b176e7a10cc5-00-1cndmd4zd3fv.sisko.replit.dev/api/courses/undefined/quiz 404 (Not Found)
+apiRequest @ queryClient.ts:15
+queryFn @ course-viewer.tsx:33
+fetchFn @ @tanstack_react-query.js?v=fe154da9:840
+run @ @tanstack_react-query.js?v=fe154da9:494
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:519
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:515
+Promise.catch
+run @ @tanstack_react-query.js?v=fe154da9:498
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:519
+Promise.then
+(anonymous) @ @tanstack_react-query.js?v=fe154da9:515
+Promise.catch
+run @ @tanstack_react-query.js?v=fe154da9:498
+start @ @tanstack_react-query.js?v=fe154da9:536
+fetch @ @tanstack_react-query.js?v=fe154da9:926
+executeFetch_fn @ @tanstack_react-query.js?v=fe154da9:2211
+fetch @ @tanstack_react-query.js?v=fe154da9:2011
+refetch @ @tanstack_react-query.js?v=fe154da9:2001
+(anonymous) @ course-viewer.tsx:173
+commitHookEffectListMount @ chunk-WERSD76P.js?v=fe154da9:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=fe154da9:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=fe154da9:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=fe154da9:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=fe154da9:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=fe154da9:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=fe154da9:19447
+commitRootImpl @ chunk-WERSD76P.js?v=fe154da9:19416
+commitRoot @ chunk-WERSD76P.js?v=fe154da9:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=fe154da9:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=fe154da9:9119
+(anonymous) @ chunk-WERSD76P.js?v=fe154da9:18627
+course-viewer.tsx:32 Fetching quiz for course: undefined
+queryClient.ts:15  GET https://3f9d3d16-536f-455a-8939-b176e7a10cc5-00-1cndmd4zd3fv.sisko.replit.dev/api/courses/undefined/quiz 404 (Not Found)
