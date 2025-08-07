@@ -701,13 +701,14 @@ export default function EnhancedHRDashboard() {
                             </Badge>
                             <Button
                               size="sm"
+                              variant="outline"
                               onClick={() => {
                                 setSelectedCourse(course);
                                 setBulkAssignCourseOpen(true);
                               }}
                             >
                               <UserPlus className="w-4 h-4 mr-1" />
-                              Assign Users
+                              Assign to Employees
                             </Button>
                             <Button
                               size="sm"
@@ -718,7 +719,7 @@ export default function EnhancedHRDashboard() {
                               }}
                             >
                               <Mail className="w-4 h-4 mr-1" />
-                              Email Assignment
+                              Assign via Email
                             </Button>
                             <Button
                               size="sm"
