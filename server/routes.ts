@@ -389,6 +389,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/quizzes/:id", requireAdmin, async (req, res) => {
+    try {
+      const quizData = insertQuizSchema.parse(req.body);
+      const updatedQuiz = await storage.updateQuiz(req.params.id, quizData);
+      
+      if (updatedQuiz) {
+        res.json(updatedQuiz);
+      } else {
+        res.status(404).json({ message: "Quiz not found" });
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid quiz data", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Failed to update quiz" });
+      }
+    }
+  });
+
+  app.delete("/api/quizzes/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteQuiz(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Quiz not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete quiz" });
+    }
+  });
+
   // Enrollment routes
   app.get("/api/my-enrollments", async (req, res) => {
     try {
@@ -416,6 +448,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enrollment);
     } catch (error) {
       res.status(500).json({ message: "Failed to enroll user" });
+    }
+  });
+
+  // Additional enrollment management endpoints
+  app.get("/api/enrollments", requireAdmin, async (req, res) => {
+    try {
+      const enrollments = await storage.getAllEnrollments();
+      res.json(enrollments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch enrollments" });
+    }
+  });
+
+  app.put("/api/enrollments/:id", requireAdmin, async (req, res) => {
+    try {
+      const { progress, quizScore, certificateIssued } = req.body;
+      const updatedEnrollment = await storage.updateEnrollment(req.params.id, {
+        progress,
+        quizScore,
+        certificateIssued,
+        completedAt: certificateIssued ? new Date() : null
+      });
+      
+      if (updatedEnrollment) {
+        res.json(updatedEnrollment);
+      } else {
+        res.status(404).json({ message: "Enrollment not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update enrollment" });
+    }
+  });
+
+  app.delete("/api/enrollments/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteEnrollment(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Enrollment not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete enrollment" });
+    }
+  });
+
+  // Certificate management endpoints
+  app.get("/api/certificates", requireAdmin, async (req, res) => {
+    try {
+      const certificates = await storage.getAllCertificates();
+      res.json(certificates);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch certificates" });
+    }
+  });
+
+  app.delete("/api/certificates/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteCertificate(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Certificate not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete certificate" });
     }
   });
 

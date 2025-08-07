@@ -29,12 +29,15 @@ export interface IStorage {
   getQuizByCourseId(courseId: string): Promise<Quiz | undefined>;
   createQuiz(quiz: InsertQuiz): Promise<Quiz>;
   updateQuiz(id: string, quiz: Partial<InsertQuiz>): Promise<Quiz | undefined>;
+  deleteQuiz(id: string): Promise<boolean>;
 
   // Enrollment operations
   getEnrollment(userId: string, courseId: string): Promise<Enrollment | undefined>;
   getUserEnrollments(userId: string): Promise<(Enrollment & { course: Course })[]>;
   createEnrollment(enrollment: InsertEnrollment): Promise<Enrollment>;
   updateEnrollment(id: string, enrollment: Partial<InsertEnrollment>): Promise<Enrollment | undefined>;
+  deleteEnrollment(id: string): Promise<boolean>;
+  getAllEnrollments(): Promise<any[]>;
   getCourseEnrollments(courseId: string): Promise<(Enrollment & { user: User })[]>;
 
   // Certificate operations
@@ -43,6 +46,8 @@ export interface IStorage {
   getCertificate(id: string): Promise<Certificate | undefined>;
   updateCertificate(certificateId: string, updates: Partial<InsertCertificate>);
   getUserCertificateForCourse(userId: string, courseId: string);
+  getAllCertificates(): Promise<any[]>;
+  deleteCertificate(id: string): Promise<boolean>;
 
   // Dashboard statistics
   getDashboardStats(): Promise<{
@@ -109,6 +114,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<boolean> {
+    // FIX: Delete related enrollments and certificates before deleting the user
+    await this.db.delete(enrollments).where(eq(enrollments.userId, id));
+    await this.db.delete(certificates).where(eq(certificates.userId, id));
+
     const result = await this.db.delete(users).where(eq(users.id, id));
     return (result.rowCount || 0) > 0;
   }
@@ -184,6 +193,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCourse(id: string): Promise<boolean> {
+    // FIX: Delete related enrollments, quizzes, and certificates before deleting the course
+    await this.db.delete(enrollments).where(eq(enrollments.courseId, id));
+    await this.db.delete(quizzes).where(eq(quizzes.courseId, id));
+    await this.db.delete(certificates).where(eq(certificates.courseId, id));
+
     const result = await this.db.update(courses).set({ isActive: false }).where(eq(courses.id, id));
     return (result.rowCount || 0) > 0;
   }
@@ -208,6 +222,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(quizzes.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async deleteQuiz(id: string): Promise<boolean> {
+    const result = await this.db.delete(quizzes).where(eq(quizzes.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   async getEnrollment(userId: string, courseId: string): Promise<Enrollment | undefined> {
@@ -242,6 +261,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(enrollments.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async deleteEnrollment(id: string): Promise<boolean> {
+    const result = await this.db.delete(enrollments).where(eq(enrollments.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async getAllEnrollments(): Promise<any[]> {
+    return await this.db
+      .select({
+        id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
+        enrolledAt: enrollments.enrolledAt,
+        completedAt: enrollments.completedAt,
+        progress: enrollments.progress,
+        quizScore: enrollments.quizScore,
+        certificateIssued: enrollments.certificateIssued,
+        status: enrollments.status,
+        deadline: enrollments.deadline,
+        user: {
+          name: users.name,
+          email: users.email,
+          employeeId: users.employeeId,
+        },
+        course: {
+          title: courses.title,
+          description: courses.description,
+        },
+      })
+      .from(enrollments)
+      .leftJoin(users, eq(enrollments.userId, users.id))
+      .leftJoin(courses, eq(enrollments.courseId, courses.id));
   }
 
   async getCourseEnrollments(courseId: string): Promise<(Enrollment & { user: User })[]> {
@@ -294,6 +346,37 @@ export class DatabaseStorage implements IStorage {
   async getCertificate(id: string): Promise<Certificate | undefined> {
     const [certificate] = await this.db.select().from(certificates).where(eq(certificates.id, id));
     return certificate || undefined;
+  }
+
+  async getAllCertificates(): Promise<any[]> {
+    return await this.db
+      .select({
+        id: certificates.id,
+        userId: certificates.userId,
+        courseId: certificates.courseId,
+        enrollmentId: certificates.enrollmentId,
+        issuedAt: certificates.issuedAt,
+        certificateData: certificates.certificateData,
+        digitalSignature: certificates.digitalSignature,
+        acknowledgedAt: certificates.acknowledgedAt,
+        user: {
+          name: users.name,
+          email: users.email,
+          employeeId: users.employeeId,
+        },
+        course: {
+          title: courses.title,
+          description: courses.description,
+        },
+      })
+      .from(certificates)
+      .leftJoin(users, eq(certificates.userId, users.id))
+      .leftJoin(courses, eq(certificates.courseId, courses.id));
+  }
+
+  async deleteCertificate(id: string): Promise<boolean> {
+    const result = await this.db.delete(certificates).where(eq(certificates.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   async getDashboardStats(): Promise<{
@@ -587,7 +670,7 @@ export class DatabaseStorage implements IStorage {
     for (const email of emails) {
       // Check if user exists
       const user = await this.getUserByEmail(email);
-      
+
       if (user) {
         // User exists, create regular enrollment
         const existingEnrollment = await this.getEnrollment(user.id, courseId);
