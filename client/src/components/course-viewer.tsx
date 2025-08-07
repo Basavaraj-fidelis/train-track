@@ -26,10 +26,25 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
 
-  const { data: quiz, refetch } = useQuery({
+  const { data: quiz, isLoading: quizLoading, error: quizError, refetch } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
-    queryFn: () => apiRequest("GET", `/api/courses/${enrollment.courseId}/quiz`).then(res => res.json()),
-    enabled: !!enrollment.courseId,
+    queryFn: async () => {
+      console.log('Fetching quiz for course:', enrollment.courseId);
+      const response = await apiRequest("GET", `/api/courses/${enrollment.courseId}/quiz`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('No quiz found for this course');
+          return null;
+        }
+        throw new Error('Failed to fetch quiz');
+      }
+      const quizData = await response.json();
+      console.log('Quiz data received:', quizData);
+      return quizData;
+    },
+    enabled: !!enrollment.courseId && hasWatchedVideo,
+    retry: 3,
+    retryDelay: 1000
   });
 
   const { data: userData } = useQuery({
@@ -150,6 +165,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       }
     }
   }, [enrollment, quiz]);
+
+  // Refetch quiz when video is completed
+  useEffect(() => {
+    if (hasWatchedVideo && !quiz && !quizLoading && !quizError) {
+      console.log('Video completed, refetching quiz...');
+      refetch();
+    }
+  }, [hasWatchedVideo, quiz, quizLoading, quizError, refetch]);
 
   if (showQuiz && quiz) {
     return (
@@ -314,17 +337,22 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
           )}
           <Button
             onClick={() => setShowQuiz(true)}
-            disabled={!quiz || showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
+            disabled={quizLoading || !quiz || showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
             className="w-full"
           >
-            {!quiz ? "Loading Quiz..." :
+            {quizLoading ? "Loading Quiz..." :
+             quizError ? "Quiz Unavailable" :
+             !quiz ? "No Quiz Available" :
              enrollment.certificateIssued ? "Review Quiz" :
              enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
              enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
           </Button>
-          {!quiz && (
+          {(quizLoading || !quiz || quizError) && (
             <p className="text-sm text-gray-500 mt-2 text-center">
-              {hasWatchedVideo ? "Quiz is being prepared..." : "Complete the video first"}
+              {quizLoading ? "Quiz is being prepared..." : 
+               quizError ? "Unable to load quiz. Please try again later." :
+               !quiz ? "No quiz available for this course" :
+               !hasWatchedVideo ? "Complete the video first" : "Quiz is being prepared..."}
             </p>
           )}
         </CardContent>

@@ -401,30 +401,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quiz routes
   app.get("/api/courses/:courseId/quiz", async (req, res) => {
     try {
+      console.log(`Fetching quiz for course: ${req.params.courseId}`);
+      
       const course = await storage.getCourse(req.params.courseId);
       
       if (!course) {
+        console.log(`Course not found: ${req.params.courseId}`);
         return res.status(404).json({ message: "Course not found" });
       }
       
+      console.log(`Course found: ${course.title}, has questions:`, !!course.questions);
+      
       // Check if course has questions embedded or separate quiz
       let quiz = await storage.getQuizByCourseId(req.params.courseId);
+      console.log('Separate quiz found:', !!quiz);
       
       // If no separate quiz exists but course has questions, create quiz from course questions
       if (!quiz && course.questions && course.questions.length > 0) {
+        console.log(`Creating quiz from course questions (${course.questions.length} questions)`);
         quiz = {
           id: `course-quiz-${course.id}`,
           courseId: course.id,
           title: `${course.title} Quiz`,
           questions: course.questions,
-          passingScore: 70
+          passingScore: 70,
+          createdAt: new Date()
         };
       }
       
+      if (!quiz) {
+        console.log('No quiz or questions found for course');
+        return res.status(404).json({ message: "No quiz found for this course" });
+      }
+      
+      console.log(`Returning quiz with ${quiz.questions?.length || 0} questions`);
       res.json(quiz);
     } catch (error) {
       console.error("Quiz fetch error:", error);
-      res.status(500).json({ message: "Failed to fetch quiz" });
+      res.status(500).json({ 
+        message: "Failed to fetch quiz",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
