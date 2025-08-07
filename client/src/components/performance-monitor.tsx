@@ -64,6 +64,27 @@ export default function PerformanceMonitor() {
     return <Badge className="bg-red-100 text-red-800">Critical</Badge>;
   };
 
+  if (!metrics) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Loading...</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground animate-pulse" />
+            </CardHeader>
+            <CardContent>
+              <div className="animate-pulse">
+                <div className="h-8 bg-gray-200 rounded mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* Server Response Time */}
