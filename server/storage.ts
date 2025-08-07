@@ -114,9 +114,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<boolean> {
-    // FIX: Delete related enrollments and certificates before deleting the user
-    await this.db.delete(enrollments).where(eq(enrollments.userId, id));
+    // FIX: Delete related certificates first, then enrollments before deleting the user
     await this.db.delete(certificates).where(eq(certificates.userId, id));
+    await this.db.delete(enrollments).where(eq(enrollments.userId, id));
 
     const result = await this.db.delete(users).where(eq(users.id, id));
     return (result.rowCount || 0) > 0;
@@ -193,10 +193,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCourse(id: string): Promise<boolean> {
-    // FIX: Delete related enrollments, quizzes, and certificates before deleting the course
+    // FIX: Delete related certificates first, then enrollments, quizzes, and finally the course
+    await this.db.delete(certificates).where(eq(certificates.courseId, id));
     await this.db.delete(enrollments).where(eq(enrollments.courseId, id));
     await this.db.delete(quizzes).where(eq(quizzes.courseId, id));
-    await this.db.delete(certificates).where(eq(certificates.courseId, id));
 
     const result = await this.db.update(courses).set({ isActive: false }).where(eq(courses.id, id));
     return (result.rowCount || 0) > 0;
