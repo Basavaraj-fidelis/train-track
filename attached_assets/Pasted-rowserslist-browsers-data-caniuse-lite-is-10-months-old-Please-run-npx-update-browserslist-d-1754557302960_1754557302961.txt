@@ -1,0 +1,165 @@
+rowserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+8:46:58 AM [express] GET /api/auth/me 401 in 3ms :: {"message":"Not authenticated"}
+8:48:05 AM [express] POST /api/auth/admin-login 200 in 1263ms :: {"success":true,"user":{"id":"de28a…
+8:48:05 AM [express] GET /api/auth/me 200 in 239ms :: {"user":{"id":"de28aa23-48d9-4a2e-a02f-ba4c54a…
+Session check - userId: de28aa23-48d9-4a2e-a02f-ba4c54ae4876 userRole: admin
+Session check - userId: de28aa23-48d9-4a2e-a02f-ba4c54ae4876 userRole: admin
+8:48:06 AM [express] GET /api/employees 200 in 954ms :: [{"id":"e4b531fb-b59d-4054-9f5c-0652f9c5e210…
+8:48:06 AM [express] GET /api/courses 500 in 954ms :: {"message":"Failed to fetch courses"}
+8:48:07 AM [express] GET /api/dashboard-stats 200 in 1637ms :: {"totalEmployees":1,"activeCourses":1…
+Error accessing course: error: column "course_type" does not exist
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.getCourse (/home/runner/workspace/server/storage.ts:126:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:946:22) {
+  length: 112,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '186',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+8:52:47 AM [express] GET /api/course-access/65545722-fa6f-4a9e-a444-7061f38fd17e 500 in 1503ms :: {"…
+Error accessing course: error: column "course_type" does not exist
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.getCourse (/home/runner/workspace/server/storage.ts:126:22)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:946:22) {
+  length: 112,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '186',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+8:52:56 AM [express] GET /api/course-access/65545722-fa6f-4a9e-a444-7061f38fd17e 500 in 1175ms :: {"…
+8:53:11 AM [express] POST /api/auth/employee-login 401 in 1029ms :: {"message":"Email not found or n…
+8:55:48 AM [express] GET /api/auth/me 304 in 3316ms :: {"user":{"id":"de28aa23-48d9-4a2e-a02f-ba4c54…
+Session check - userId: de28aa23-48d9-4a2e-a02f-ba4c54ae4876 userRole: admin
+Session check - userId: de28aa23-48d9-4a2e-a02f-ba4c54ae4876 userRole: admin
+8:55:49 AM [express] GET /api/courses 500 in 941ms :: {"message":"Failed to fetch courses"}
+8:55:49 AM [express] GET /api/dashboard-stats 304 in 1642ms :: {"totalEmployees":1,"activeCourses":1…
+8:55:51 AM [express] GET /api/employees 304 in 2947ms :: [{"id":"e4b531fb-b59d-4054-9f5c-0652f9c5e21…
+Session check - userId: de28aa23-48d9-4a2e-a02f-ba4c54ae4876 userRole: admin
+Course creation request body: [Object: null prototype] {
+  title: 'Onboarding',
+  description: 'Onboarding  for new joinees',
+  courseType: 'one-time',
+  questions: '[{"question":"understood everything about your company profile, complince, dos and dont dos and my rules and responsiblilites","options":["yes","some what","no","not at all"],"correctAnswer":0}]'
+}
+Course creation file: {
+  fieldname: 'video',
+  originalname: 'Welcome to Fidelis Technology Services_free.mp4',
+  encoding: '7bit',
+  mimetype: 'video/mp4',
+  destination: '/home/runner/workspace/server/uploads',
+  filename: 'video-1754557227489-407155543.mp4',
+  path: '/home/runner/workspace/server/uploads/video-1754557227489-407155543.mp4',
+  size: 4644611
+}
+Session during course creation: Session {
+  cookie: {
+    path: '/',
+    _expires: 2025-08-08T08:57:47.141Z,
+    originalMaxAge: 86400000,
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax'
+  },
+  userId: 'de28aa23-48d9-4a2e-a02f-ba4c54ae4876',
+  userRole: 'admin'
+}
+Error creating course: error: column "course_type" of relation "courses" does not exist
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.createCourse (/home/runner/workspace/server/storage.ts:146:24)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:267:22) {
+  length: 132,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '202',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1066',
+  routine: 'checkInsertTargets'
+}
+Course creation error: error: column "course_type" of relation "courses" does not exist
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.createCourse (/home/runner/workspace/server/storage.ts:146:24)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:267:22) {
+  length: 132,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '202',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1066',
+  routine: 'checkInsertTargets'
+}
+9:00:29 AM [express] POST /api/courses 500 in 1730ms :: {"message":"Failed to create course","error"…
+9:00:54 AM [vite] hmr update /src/pages/enhanced-hr-dashboard.tsx, /src/index.css?v=1SeYbDtV-PQ_fCIUzibz2
+9:00:57 AM [vite] Internal server error: Failed to resolve import "@/components/performance-monitor" from "client/src/pages/enhanced-hr-dashboard.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /home/runner/workspace/client/src/pages/enhanced-hr-dashboard.tsx:41:31
+  51 |  import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog";
+  52 |  import CourseAssignmentsTracker from "@/components/course-assignments-tracker";
+  53 |  import PerformanceMonitor from "@/components/performance-monitor";
+     |                                  ^
+  54 |  export default function EnhancedHRDashboard() {
+  55 |    _s();
+      at TransformPluginContext._formatError (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49258:41)
+      at TransformPluginContext.error (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49253:16)
+      at normalizeUrl (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64291:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async <anonymous> (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64423:39)
+      at async Promise.all (index 21)
+      at async TransformPluginContext.transform (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:64350:7)
+      at async PluginContainer.transform (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:49099:18)
+      at async loadAndTransform (/home/runner/workspace/node_modules/vite/dist/node/chunks/dep-C6uTJdX2.js:51977:27)
