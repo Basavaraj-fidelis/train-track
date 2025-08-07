@@ -8,6 +8,7 @@ var __export = (target, all) => {
 import express2 from "express";
 import session from "express-session";
 import MemoryStore from "memorystore";
+import cors from "cors";
 
 // server/routes.ts
 import { createServer } from "http";
@@ -17,6 +18,7 @@ var schema_exports = {};
 __export(schema_exports, {
   bulkAssignCourseSchema: () => bulkAssignCourseSchema,
   bulkAssignUsersSchema: () => bulkAssignUsersSchema,
+  bulkEmailAssignmentSchema: () => bulkEmailAssignmentSchema,
   certificates: () => certificates,
   certificatesRelations: () => certificatesRelations,
   courses: () => courses,
@@ -63,7 +65,16 @@ var courses = pgTable("courses", {
   // in minutes
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
-  isActive: boolean("is_active").default(true)
+  isActive: boolean("is_active").default(true),
+  isComplianceCourse: boolean("is_compliance_course").default(false),
+  renewalPeriodMonths: integer("renewal_period_months").default(3),
+  // 3 or 4 months
+  isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
+  // New fields for deadline management
+  defaultDeadlineDays: integer("default_deadline_days").default(30),
+  // Default days to complete
+  reminderDays: integer("reminder_days").default(7)
+  // Days before deadline to send reminder
 });
 var quizzes = pgTable("quizzes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -76,14 +87,28 @@ var quizzes = pgTable("quizzes", {
 });
 var enrollments = pgTable("enrollments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
   courseId: varchar("course_id").references(() => courses.id).notNull(),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   progress: integer("progress").default(0),
   // percentage 0-100
   quizScore: integer("quiz_score"),
-  certificateIssued: boolean("certificate_issued").default(false)
+  certificateIssued: boolean("certificate_issued").default(false),
+  expiresAt: timestamp("expires_at"),
+  // When the certification expires
+  isExpired: boolean("is_expired").default(false),
+  renewalCount: integer("renewal_count").default(0),
+  // Track how many times renewed
+  // New fields for bulk email assignment
+  assignedEmail: text("assigned_email"),
+  // Email assigned before user creation
+  assignmentToken: text("assignment_token"),
+  // Unique token for email access
+  deadline: timestamp("deadline"),
+  // Course completion deadline
+  status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
+  remindersSent: integer("reminders_sent").default(0)
 });
 var certificates = pgTable("certificates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -91,8 +116,12 @@ var certificates = pgTable("certificates", {
   courseId: varchar("course_id").references(() => courses.id).notNull(),
   enrollmentId: varchar("enrollment_id").references(() => enrollments.id).notNull(),
   issuedAt: timestamp("issued_at").defaultNow(),
-  certificateData: jsonb("certificate_data")
+  certificateData: jsonb("certificate_data"),
   // Certificate details for PDF generation
+  digitalSignature: text("digital_signature"),
+  // User's digital signature
+  acknowledgedAt: timestamp("acknowledged_at")
+  // When user acknowledged completion
 });
 var usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -166,6 +195,11 @@ var bulkAssignUsersSchema = z.object({
   userIds: z.array(z.string()).min(1, "At least one user must be selected"),
   courseIds: z.array(z.string()).min(1, "At least one course must be selected")
 });
+var bulkEmailAssignmentSchema = z.object({
+  courseId: z.string(),
+  emails: z.array(z.string().email()).min(1, "At least one email must be provided"),
+  deadlineDays: z.number().min(1).max(365).default(30)
+});
 
 // server/db.ts
 import { Pool, neonConfig } from "@neondatabase/serverless";
@@ -181,7 +215,7 @@ var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = drizzle({ client: pool, schema: schema_exports });
 
 // server/storage.ts
-import { eq, and, desc, sql as sql2, isNull } from "drizzle-orm";
+import { eq, and, desc, sql as sql2, isNull, inArray } from "drizzle-orm";
 import crypto from "crypto";
 var DatabaseStorage = class {
   constructor(db2) {
@@ -300,8 +334,19 @@ var DatabaseStorage = class {
   async getUserCertificates(userId) {
     return await this.db.select().from(certificates).innerJoin(courses, eq(certificates.courseId, courses.id)).where(eq(certificates.userId, userId)).orderBy(desc(certificates.issuedAt)).then((results) => results.map((result) => ({ ...result.certificates, course: result.courses })));
   }
-  async createCertificate(insertCertificate) {
-    const [certificate] = await this.db.insert(certificates).values(insertCertificate).returning();
+  async createCertificate(certificateData) {
+    const [certificate] = await this.db.insert(certificates).values(certificateData).returning();
+    return certificate;
+  }
+  async updateCertificate(certificateId, updates) {
+    const [certificate] = await this.db.update(certificates).set(updates).where(eq(certificates.id, certificateId)).returning();
+    return certificate;
+  }
+  async getUserCertificateForCourse(userId, courseId) {
+    const [certificate] = await this.db.select().from(certificates).where(and(
+      eq(certificates.userId, userId),
+      eq(certificates.courseId, courseId)
+    ));
     return certificate;
   }
   async getCertificate(id) {
@@ -329,7 +374,7 @@ var DatabaseStorage = class {
   async bulkAssignCourse(courseId, userIds) {
     const existingEnrollments = await this.db.select().from(enrollments).where(and(
       eq(enrollments.courseId, courseId),
-      sql2`${enrollments.userId} = ANY(ARRAY[${userIds.map((id) => `'${id}'`).join(",")}])`
+      inArray(enrollments.userId, userIds)
     ));
     const existingUserIds = new Set(existingEnrollments.map((e) => e.userId));
     const newUserIds = userIds.filter((userId) => !existingUserIds.has(userId));
@@ -339,6 +384,8 @@ var DatabaseStorage = class {
     const enrollmentData = newUserIds.map((userId) => ({
       userId,
       courseId
+      // Initialize expiresAt for bulk assignment if needed, or handle it in the caller
+      // expiresAt: new Date() // Example: set to now, or calculate based on course settings
     }));
     const newEnrollments = await this.db.insert(enrollments).values(enrollmentData).returning();
     return newEnrollments;
@@ -346,8 +393,8 @@ var DatabaseStorage = class {
   async bulkAssignUsers(userIds, courseIds) {
     try {
       const existingEnrollments = await this.db.select().from(enrollments).where(and(
-        sql2`${enrollments.userId} = ANY(ARRAY[${userIds.map((id) => `'${id}'`).join(",")}])`,
-        sql2`${enrollments.courseId} = ANY(ARRAY[${courseIds.map((id) => `'${id}'`).join(",")}])`
+        inArray(enrollments.userId, userIds),
+        inArray(enrollments.courseId, courseIds)
       ));
       const existingPairs = new Set(
         existingEnrollments.map((e) => `${e.userId}-${e.courseId}`)
@@ -385,6 +432,165 @@ var DatabaseStorage = class {
       certificatesEarned: userCertificates.length,
       averageScore: Math.round(averageScore)
     };
+  }
+  async getUserByEmployeeId(employeeId) {
+    const [user] = await this.db.select().from(users).where(eq(users.employeeId, employeeId));
+    return user || void 0;
+  }
+  async autoEnrollInComplianceCourses(employeeIdentifier) {
+    const complianceCourses = await this.db.select().from(courses).where(and(
+      eq(courses.isComplianceCourse, true),
+      eq(courses.isAutoEnrollNewEmployees, true),
+      eq(courses.isActive, true)
+    ));
+    const user = await this.getUserByEmail(employeeIdentifier) || await this.getUserByEmployeeId(employeeIdentifier);
+    if (!user) return;
+    for (const course of complianceCourses) {
+      const existingEnrollment = await this.getEnrollment(user.id, course.id);
+      if (!existingEnrollment) {
+        const expirationDate = /* @__PURE__ */ new Date();
+        expirationDate.setMonth(expirationDate.getMonth() + (course.renewalPeriodMonths || 3));
+        await this.createEnrollment({
+          userId: user.id,
+          courseId: course.id,
+          expiresAt: expirationDate
+        });
+      }
+    }
+  }
+  async deactivateEmployees(employeeIds) {
+    const result = await this.db.update(users).set({ isActive: false }).where(inArray(users.id, employeeIds));
+    return result.rowCount || 0;
+  }
+  async getComplianceReport() {
+    const [totalEmp] = await this.db.select({ count: sql2`count(*)` }).from(users).where(eq(users.role, "employee"));
+    const [activeEmp] = await this.db.select({ count: sql2`count(*)` }).from(users).where(and(eq(users.role, "employee"), eq(users.isActive, true)));
+    const thirtyDaysFromNow = /* @__PURE__ */ new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    const [expiredCerts] = await this.db.select({ count: sql2`count(*)` }).from(enrollments).where(and(
+      sql2`${enrollments.expiresAt} < NOW()`,
+      eq(enrollments.isExpired, false)
+    ));
+    const [expiringCerts] = await this.db.select({ count: sql2`count(*)` }).from(enrollments).where(and(
+      sql2`${enrollments.expiresAt} BETWEEN NOW() AND '${thirtyDaysFromNow.toISOString()}'`,
+      eq(enrollments.isExpired, false)
+    ));
+    const complianceCourses = await this.db.select().from(courses).where(eq(courses.isComplianceCourse, true));
+    const expiringEmployees = await this.db.select().from(enrollments).innerJoin(users, eq(enrollments.userId, users.id)).innerJoin(courses, eq(enrollments.courseId, courses.id)).where(and(
+      sql2`${enrollments.expiresAt} BETWEEN NOW() AND '${thirtyDaysFromNow.toISOString()}'`,
+      eq(enrollments.isExpired, false),
+      eq(users.isActive, true)
+    ));
+    return {
+      totalEmployees: Number(totalEmp.count),
+      activeEmployees: Number(activeEmp.count),
+      expiredCertifications: Number(expiredCerts.count),
+      expiringInNext30Days: Number(expiringCerts.count),
+      complianceCourses,
+      expiringEmployees: expiringEmployees.map((result) => ({
+        ...result.enrollments,
+        user: result.users,
+        course: result.courses
+      }))
+    };
+  }
+  async renewExpiredCertifications(courseId, userIds) {
+    const whereConditions = [
+      eq(enrollments.courseId, courseId),
+      sql2`${enrollments.expiresAt} <= NOW()`
+    ];
+    if (userIds && userIds.length > 0) {
+      whereConditions.push(
+        inArray(enrollments.userId, userIds)
+      );
+    }
+    const course = await this.getCourse(courseId);
+    const renewalPeriod = course?.renewalPeriodMonths || 3;
+    const newExpirationDate = /* @__PURE__ */ new Date();
+    newExpirationDate.setMonth(newExpirationDate.getMonth() + renewalPeriod);
+    const renewed = await this.db.update(enrollments).set({
+      progress: 0,
+      quizScore: null,
+      completedAt: null,
+      certificateIssued: false,
+      expiresAt: newExpirationDate,
+      isExpired: false,
+      renewalCount: sql2`${enrollments.renewalCount} + 1`
+    }).where(and(...whereConditions)).returning();
+    return renewed;
+  }
+  async markExpiredCertifications() {
+    await this.db.update(enrollments).set({ isExpired: true }).where(and(
+      sql2`${enrollments.expiresAt} < NOW()`,
+      eq(enrollments.isExpired, false)
+    ));
+  }
+  // --- New methods for email-based bulk assignment ---
+  async bulkAssignCourseByEmail(courseId, emails, deadlineDays) {
+    const deadline = /* @__PURE__ */ new Date();
+    deadline.setDate(deadline.getDate() + deadlineDays);
+    const newEnrollmentsData = [];
+    for (const email of emails) {
+      const user = await this.getUserByEmail(email);
+      if (user) {
+        const existingEnrollment = await this.getEnrollment(user.id, courseId);
+        if (!existingEnrollment) {
+          newEnrollmentsData.push({
+            userId: user.id,
+            courseId,
+            deadline,
+            status: "pending",
+            assignmentToken: crypto.randomUUID()
+          });
+        }
+      } else {
+        newEnrollmentsData.push({
+          courseId,
+          assignedEmail: email,
+          deadline,
+          status: "pending",
+          assignmentToken: crypto.randomUUID()
+        });
+      }
+    }
+    if (newEnrollmentsData.length === 0) {
+      return [];
+    }
+    return await this.db.insert(enrollments).values(newEnrollmentsData).returning();
+  }
+  async getEnrollmentByToken(token) {
+    const [enrollment] = await this.db.select().from(enrollments).where(eq(enrollments.assignmentToken, token));
+    return enrollment;
+  }
+  async getCourseAssignments(courseId) {
+    const enrollmentsWithUsers = await this.db.select().from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(and(
+      eq(enrollments.courseId, courseId),
+      sql2`${enrollments.assignmentToken} IS NOT NULL`
+    ));
+    return enrollmentsWithUsers.map((result) => ({
+      ...result.enrollments,
+      user: result.users
+    }));
+  }
+  async sendCourseReminders(courseId, pendingOnly) {
+    console.log(`Sending reminders for course ${courseId}${pendingOnly ? " (pending only)" : ""}`);
+    return 0;
+  }
+  async cleanupExpiredAssignments() {
+    try {
+      const result = await this.db.update(enrollments).set({ status: "expired" }).where(and(
+        sql2`${enrollments.deadline} < NOW()`,
+        sql2`${enrollments.status} != 'expired'`,
+        sql2`${enrollments.status} != 'completed'`
+      ));
+      return result.rowCount || 0;
+    } catch (error) {
+      if (error.code === "42703") {
+        console.log("Deadline column not found, skipping cleanup");
+        return 0;
+      }
+      throw error;
+    }
   }
 };
 var storage = new DatabaseStorage(db);
@@ -440,6 +646,18 @@ var transporter = nodemailer.createTransport({
   }
 });
 async function registerRoutes(app2) {
+  const cleanupExpiredAssignments = async () => {
+    try {
+      const expiredCount = await storage.cleanupExpiredAssignments();
+      if (expiredCount > 0) {
+        console.log(`Cleaned up ${expiredCount} expired course assignments`);
+      }
+    } catch (error) {
+      console.error("Failed to cleanup expired assignments:", error);
+    }
+  };
+  cleanupExpiredAssignments();
+  setInterval(cleanupExpiredAssignments, 60 * 60 * 1e3);
   app2.post("/api/auth/admin-login", async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -653,7 +871,9 @@ async function registerRoutes(app2) {
     try {
       const filename = req.params.filename;
       const videoPath = path.join(process.cwd(), "server/uploads", filename);
+      console.log(`Attempting to serve video: ${videoPath}`);
       if (!fs.existsSync(videoPath)) {
+        console.error(`Video file not found: ${videoPath}`);
         return res.status(404).json({ message: "Video not found" });
       }
       const stat = fs.statSync(videoPath);
@@ -739,48 +959,37 @@ async function registerRoutes(app2) {
         return res.status(401).json({ message: "Not authenticated" });
       }
       const { courseId, answers, score } = req.body;
+      console.log("Quiz submission data:", { courseId, score, userId: req.session.userId });
       const enrollment = await storage.getEnrollment(req.session.userId, courseId);
       if (!enrollment) {
         return res.status(400).json({ message: "Not enrolled in this course" });
       }
+      const quiz = await storage.getQuizByCourseId(courseId);
+      const passingScore = quiz?.passingScore || 70;
+      const isPassing = score >= passingScore;
+      console.log("Quiz validation:", { passingScore, isPassing, currentScore: score });
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: 100,
-        completedAt: /* @__PURE__ */ new Date()
+        progress: isPassing ? 100 : 90,
+        // Mark as 90% if not passing to allow retake
+        completedAt: isPassing ? /* @__PURE__ */ new Date() : null
+        // Only mark completed if passing
       });
-      const quiz = await storage.getQuizByCourseId(courseId);
-      if (quiz && score >= (quiz.passingScore || 70)) {
-        const certificate = await storage.createCertificate({
-          userId: req.session.userId,
-          courseId,
-          enrollmentId: enrollment.id,
-          certificateData: {
-            score,
-            completedAt: /* @__PURE__ */ new Date()
-          }
-        });
-        await storage.updateEnrollment(enrollment.id, {
-          certificateIssued: true
-        });
-        const user = await storage.getUser(req.session.userId);
-        const course = await storage.getCourse(courseId);
-        if (user && course) {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM || "noreply@traintrack.com",
-            to: user.email,
-            subject: `Certificate: ${course.title}`,
-            html: `
-              <h2>Congratulations!</h2>
-              <p>You have successfully completed <strong>${course.title}</strong> with a score of ${score}%.</p>
-              <p>Your certificate ID: ${certificate.id}</p>
-              <p>Completion Date: ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</p>
-            `
-          });
-        }
-      }
-      res.json({ success: true, score, certificateIssued: score >= (quiz?.passingScore || 70) });
+      let certificate = null;
+      console.log("Quiz passed - awaiting acknowledgment for certificate generation");
+      res.json({
+        success: true,
+        score,
+        certificateIssued: enrollment.certificateIssued,
+        isPassing,
+        needsAcknowledgment: isPassing && !enrollment.certificateIssued
+      });
     } catch (error) {
-      res.status(500).json({ message: "Failed to submit quiz" });
+      console.error("Quiz submission error:", error);
+      res.status(500).json({
+        message: "Failed to submit quiz",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
     }
   });
   app2.get("/api/my-certificates", async (req, res) => {
@@ -792,6 +1001,102 @@ async function registerRoutes(app2) {
       res.json(certificates2);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch certificates" });
+    }
+  });
+  app2.post("/api/acknowledge-completion", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const { courseId, digitalSignature } = req.body;
+      if (!digitalSignature?.trim()) {
+        return res.status(400).json({ message: "Digital signature is required" });
+      }
+      const enrollment = await storage.getEnrollment(req.session.userId, courseId);
+      if (!enrollment) {
+        return res.status(400).json({ message: "Not enrolled in this course" });
+      }
+      const quiz = await storage.getQuizByCourseId(courseId);
+      const passingScore = quiz?.passingScore || 70;
+      if (!enrollment.quizScore || enrollment.quizScore < passingScore) {
+        return res.status(400).json({ message: "Quiz must be completed with passing score before acknowledgment" });
+      }
+      const existingCertificate = await storage.getUserCertificateForCourse(req.session.userId, courseId);
+      let certificate;
+      const user = await storage.getUser(req.session.userId);
+      const course = await storage.getCourse(courseId);
+      const certificateData = {
+        score: enrollment.quizScore,
+        completedAt: /* @__PURE__ */ new Date(),
+        acknowledgedAt: /* @__PURE__ */ new Date(),
+        digitalSignature: digitalSignature.trim(),
+        participantName: user?.name || "",
+        courseName: course?.title || "",
+        completionDate: (/* @__PURE__ */ new Date()).toLocaleDateString(),
+        certificateId: existingCertificate?.id || `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+      };
+      if (existingCertificate) {
+        certificate = await storage.updateCertificate(existingCertificate.id, {
+          certificateData,
+          digitalSignature: digitalSignature.trim(),
+          acknowledgedAt: /* @__PURE__ */ new Date()
+        });
+      } else {
+        certificate = await storage.createCertificate({
+          userId: req.session.userId,
+          courseId,
+          enrollmentId: enrollment.id,
+          certificateData,
+          digitalSignature: digitalSignature.trim(),
+          acknowledgedAt: /* @__PURE__ */ new Date()
+        });
+      }
+      await storage.updateEnrollment(enrollment.id, {
+        certificateIssued: true,
+        completedAt: /* @__PURE__ */ new Date()
+      });
+      try {
+        if (user && course) {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || "noreply@traintrack.com",
+            to: user.email,
+            subject: `Certificate of Completion: ${course.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
+                <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: center;">
+                  <h3 style="color: #1e40af; margin-bottom: 20px;">This is to certify that</h3>
+                  <h2 style="color: #1e3a8a; font-size: 28px; margin: 20px 0;">${user.name}</h2>
+                  <p style="font-size: 16px; margin: 20px 0;">has successfully completed the training course</p>
+                  <h3 style="color: #1e40af; font-size: 22px; margin: 20px 0;">${course.title}</h3>
+                  <div style="margin: 30px 0;">
+                    <p><strong>Score Achieved:</strong> ${enrollment.quizScore}%</p>
+                    <p><strong>Completion Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</p>
+                    <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
+                  </div>
+                  <p style="font-style: italic; margin-top: 30px;">Digital Signature: ${digitalSignature}</p>
+                </div>
+                <p style="text-align: center; color: #666; font-size: 12px;">
+                  This certificate was digitally generated and acknowledged by the participant.
+                </p>
+              </div>
+            `
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send certificate email:", emailError);
+      }
+      res.json({
+        success: true,
+        certificate,
+        message: "Course completion acknowledged and certificate generated successfully"
+      });
+    } catch (error) {
+      console.error("Acknowledgment error:", error);
+      res.status(500).json({
+        message: "Failed to acknowledge completion",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
     }
   });
   app2.get("/api/dashboard-stats", requireAdmin, async (req, res) => {
@@ -807,6 +1112,79 @@ async function registerRoutes(app2) {
       const validatedData = bulkAssignCourseSchema.parse(req.body);
       const enrollments2 = await storage.bulkAssignCourse(validatedData.courseId, validatedData.userIds);
       res.json({ enrollments: enrollments2, message: `Course assigned to ${validatedData.userIds.length} users successfully` });
+      app2.post("/api/bulk-import-employees", requireAdmin, async (req2, res2) => {
+        try {
+          const { employees } = req2.body;
+          if (!Array.isArray(employees) || employees.length === 0) {
+            return res2.status(400).json({ message: "Employee data array is required" });
+          }
+          const results = {
+            created: 0,
+            updated: 0,
+            errors: []
+          };
+          for (const empData of employees) {
+            try {
+              const existingUser = await storage.getUserByEmail(empData.email) || await storage.getUserByEmployeeId(empData.employeeId);
+              if (existingUser) {
+                await storage.updateUser(existingUser.id, {
+                  ...empData,
+                  role: "employee",
+                  isActive: empData.isActive !== false
+                  // Default to active
+                });
+                results.updated++;
+              } else {
+                await storage.createUser({
+                  ...empData,
+                  role: "employee",
+                  password: empData.password || await bcrypt.hash(`temp${Date.now()}`, 10),
+                  isActive: empData.isActive !== false
+                });
+                results.created++;
+                await storage.autoEnrollInComplianceCourses(empData.employeeId || empData.email);
+              }
+            } catch (error) {
+              results.errors.push({
+                employee: empData.email || empData.employeeId,
+                error: error.message
+              });
+            }
+          }
+          res2.json(results);
+        } catch (error) {
+          res2.status(500).json({ message: "Bulk import failed", error: error.message });
+        }
+      });
+      app2.post("/api/deactivate-employees", requireAdmin, async (req2, res2) => {
+        try {
+          const { employeeIds } = req2.body;
+          const results = await storage.deactivateEmployees(employeeIds);
+          res2.json({ message: `Deactivated ${results} employees successfully` });
+        } catch (error) {
+          res2.status(500).json({ message: "Failed to deactivate employees" });
+        }
+      });
+      app2.get("/api/compliance-status", requireAdmin, async (req2, res2) => {
+        try {
+          const complianceReport = await storage.getComplianceReport();
+          res2.json(complianceReport);
+        } catch (error) {
+          res2.status(500).json({ message: "Failed to generate compliance report" });
+        }
+      });
+      app2.post("/api/renew-expired-certifications", requireAdmin, async (req2, res2) => {
+        try {
+          const { courseId, userIds } = req2.body;
+          const renewedEnrollments = await storage.renewExpiredCertifications(courseId, userIds);
+          res2.json({
+            message: `Renewed ${renewedEnrollments.length} certifications`,
+            renewedEnrollments
+          });
+        } catch (error) {
+          res2.status(500).json({ message: "Failed to renew certifications" });
+        }
+      });
     } catch (error) {
       console.error("Error bulk assigning course:", error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
@@ -820,6 +1198,160 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("Error bulk assigning users:", error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+  app2.post("/api/bulk-assign-emails", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = bulkEmailAssignmentSchema.parse(req.body);
+      const assignments = await storage.bulkAssignCourseByEmail(
+        validatedData.courseId,
+        validatedData.emails,
+        validatedData.deadlineDays
+      );
+      const course = await storage.getCourse(validatedData.courseId);
+      for (const assignment of assignments) {
+        try {
+          const loginLink = `${req.protocol}://${req.get("host")}/course-access/${assignment.assignmentToken}`;
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || "noreply@traintrack.com",
+            to: assignment.assignedEmail,
+            subject: `Training Assignment: ${course?.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">Training Course Assignment</h2>
+                <p>You have been assigned to complete the following training course:</p>
+                <div style="border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <h3 style="color: #1e40af; margin-top: 0;">${course?.title}</h3>
+                  <p>${course?.description}</p>
+                  <p><strong>Deadline:</strong> ${assignment.deadline?.toLocaleDateString()}</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${loginLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Access Course
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  This link is valid until ${assignment.deadline?.toLocaleDateString()}. 
+                  Please complete the course before the deadline.
+                </p>
+              </div>
+            `
+          });
+        } catch (emailError) {
+          console.error("Failed to send assignment email:", emailError);
+        }
+      }
+      res.json({
+        assignments,
+        message: `Course assigned to ${validatedData.emails.length} email addresses successfully`
+      });
+    } catch (error) {
+      console.error("Error bulk assigning emails:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+  app2.get("/api/course-access/:token", async (req, res) => {
+    try {
+      const enrollment = await storage.getEnrollmentByToken(req.params.token);
+      if (!enrollment || enrollment.status === "expired") {
+        return res.status(404).json({ message: "Invalid or expired access link" });
+      }
+      if (/* @__PURE__ */ new Date() > enrollment.deadline) {
+        await storage.cleanupExpiredAssignments();
+        return res.status(410).json({ message: "Course deadline has passed" });
+      }
+      const course = await storage.getCourse(enrollment.courseId);
+      res.json({
+        enrollment,
+        course,
+        isFirstTime: !enrollment.userId
+      });
+    } catch (error) {
+      console.error("Error accessing course:", error);
+      res.status(500).json({ message: "Failed to access course" });
+    }
+  });
+  app2.post("/api/complete-profile", async (req, res) => {
+    try {
+      const { token, userData } = req.body;
+      const enrollment = await storage.getEnrollmentByToken(token);
+      if (!enrollment) {
+        return res.status(404).json({ message: "Invalid access token" });
+      }
+      const hashedPassword = await bcrypt.hash(`temp${Date.now()}`, 10);
+      const user = await storage.createUser({
+        ...userData,
+        email: enrollment.assignedEmail,
+        password: hashedPassword,
+        role: "employee",
+        isActive: true
+      });
+      await storage.updateEnrollment(enrollment.id, {
+        userId: user.id,
+        status: "accessed"
+      });
+      req.session.userId = user.id;
+      req.session.userRole = "employee";
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error("Error completing profile:", error);
+      res.status(500).json({ message: "Failed to complete profile" });
+    }
+  });
+  app2.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching course assignments:", error);
+      res.status(500).json({ message: "Failed to fetch assignments" });
+    }
+  });
+  app2.post("/api/send-reminders/:courseId", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      const pendingAssignments = assignments.filter(
+        (a) => ["pending", "accessed"].includes(a.status) && /* @__PURE__ */ new Date() < new Date(a.deadline)
+      );
+      const course = await storage.getCourse(req.params.courseId);
+      let sentCount = 0;
+      for (const assignment of pendingAssignments) {
+        try {
+          const loginLink = `${req.protocol}://${req.get("host")}/course-access/${assignment.assignmentToken}`;
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || "noreply@traintrack.com",
+            to: assignment.assignedEmail,
+            subject: `Reminder: Training Course Deadline Approaching - ${course?.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #dc2626;">Training Reminder</h2>
+                <p>This is a reminder that you have a pending training course that needs to be completed:</p>
+                <div style="border: 1px solid #fca5a5; background-color: #fef2f2; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <h3 style="color: #dc2626; margin-top: 0;">${course?.title}</h3>
+                  <p><strong>Deadline:</strong> ${new Date(assignment.deadline).toLocaleDateString()}</p>
+                  <p><strong>Status:</strong> ${assignment.status}</p>
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${loginLink}" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Complete Course Now
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  Please complete this course before the deadline to avoid it being marked as expired.
+                </p>
+              </div>
+            `
+          });
+          sentCount++;
+        } catch (emailError) {
+          console.error("Failed to send reminder email:", emailError);
+        }
+      }
+      await storage.sendCourseReminders(req.params.courseId);
+      res.json({ message: `Sent ${sentCount} reminder emails` });
+    } catch (error) {
+      console.error("Error sending reminders:", error);
+      res.status(500).json({ message: "Failed to send reminders" });
     }
   });
   app2.get("/api/user-analytics/:id", requireAdmin, async (req, res) => {
@@ -964,24 +1496,34 @@ function serveStatic(app2) {
 // server/index.ts
 var app = express2();
 var SessionStore = MemoryStore(session);
-app.use(session({
-  secret: process.env.SESSION_SECRET || "your-secret-key-here",
-  resave: false,
-  saveUninitialized: false,
-  store: new SessionStore({
-    checkPeriod: 864e5
-    // Prune expired entries every 24h
-  }),
-  cookie: {
-    secure: false,
-    // Set to true in production with HTTPS
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1e3,
-    // 24 hours
-    sameSite: "lax"
-  },
-  name: "traintrack.sid"
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "your-secret-key-here",
+    resave: false,
+    saveUninitialized: false,
+    store: new SessionStore({
+      checkPeriod: 864e5
+      // Prune expired entries every 24h
+    }),
+    cookie: {
+      secure: false,
+      // Set to true in production with HTTPS
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1e3,
+      // 24 hours
+      sameSite: "lax"
+    },
+    name: "traintrack.sid"
+  })
+);
+app.use(
+  cors({
+    origin: process.env.NODE_ENV === "production" ? ["https://*.replit.dev", "https://*.repl.co"] : true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"]
+  })
+);
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
 app.use((req, res, next) => {
@@ -1022,11 +1564,14 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
   const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true
+    },
+    () => {
+      log(`serving on port ${port}`);
+    }
+  );
 })();
