@@ -10,6 +10,7 @@ import EnhancedHRDashboard from "@/pages/enhanced-hr-dashboard";
 import CourseCreation from "@/pages/course-creation";
 import EmployeeDashboard from "@/pages/employee-dashboard";
 import NotFound from "@/pages/not-found";
+import CourseAccess from "@/pages/course-access";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/hr-dashboard" component={EnhancedHRDashboard} />
       <Route path="/create-course" component={CourseCreation} />
       <Route path="/employee-dashboard" component={EmployeeDashboard} />
+      <Route path="/course-access/:token" component={CourseAccess} />
       <Route component={NotFound} />
     </Switch>
   );
