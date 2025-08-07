@@ -381,7 +381,7 @@ export default function EnhancedHRDashboard() {
             <nav className="space-y-1">
               {[
                 { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-                { id: "employees", label: "User Management", icon: Users },
+                { id: "employees", label: "Employee Directory", icon: Users },
                 { id: "courses", label: "Course Management", icon: Book },
                 { id: "settings", label: "Settings", icon: Settings },
               ].map((item) => (
@@ -556,40 +556,21 @@ export default function EnhancedHRDashboard() {
             {activeSection === "employees" && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Employee Directory</h2>
                   <div className="flex space-x-2">
                     <Button variant="outline" onClick={exportEmployees}>
                       <Download size={16} className="mr-2" />
-                      Export
+                      Export Directory
                     </Button>
-                    <Button variant="outline" onClick={handleImportEmployees}>
-                      <Upload size={16} className="mr-2" />
-                      Import
-                    </Button>
-                    <Button onClick={() => setBulkAssignUsersOpen(true)}>
-                      <UserPlus size={16} className="mr-2" />
-                      Bulk Assign
-                    </Button>
-                    <Dialog open={addEmployeeOpen} onOpenChange={setAddEmployeeOpen}>
-                      <DialogTrigger asChild>
-                        <Button>
-                          <Plus size={16} className="mr-2" />
-                          Add Employee
-                        </Button>
-                      </DialogTrigger>
-                      <EnhancedEmployeeForm
-                        form={employeeForm}
-                        onSubmit={addEmployeeMutation.mutate}
-                        onCancel={() => setAddEmployeeOpen(false)}
-                        isLoading={addEmployeeMutation.isPending}
-                      />
-                    </Dialog>
                   </div>
                 </div>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Employee List</CardTitle>
+                    <CardTitle>Employee Directory</CardTitle>
+                    <p className="text-sm text-gray-600">
+                      Employees are automatically added when they access courses via email assignments
+                    </p>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
