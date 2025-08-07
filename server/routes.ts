@@ -1056,6 +1056,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pendingAssignments = assignments.filter(a => 
         a.status !== 'completed' && 
         a.status !== 'expired' &&
+        !a.certificateIssued &&
+        a.progress < 100 &&
         new Date() < new Date(a.deadline)
       );
 

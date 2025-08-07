@@ -655,6 +655,7 @@ export class Storage {
         deadline: enrollments.deadline,
         status: enrollments.status,
         progress: enrollments.progress,
+        certificateIssued: enrollments.certificateIssued,
         remindersSent: enrollments.remindersSent,
         enrolledAt: enrollments.enrolledAt,
         completedAt: enrollments.completedAt,
