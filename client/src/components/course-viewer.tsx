@@ -18,8 +18,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const [currentSection, setCurrentSection] = useState("video");
   const [showQuiz, setShowQuiz] = useState(false);
   const [showAcknowledgment, setShowAcknowledgment] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [hasWatchedVideo, setHasWatchedVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(enrollment.progress || 0);
+  const [hasWatchedVideo, setHasWatchedVideo] = useState(enrollment.progress >= 80);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +43,12 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+      // Update local state to reflect the change
+      if (data.progress) {
+        setVideoProgress(data.progress);
+      }
     },
   });
 
@@ -168,17 +172,20 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 style={{ maxHeight: "500px" }}
                 onTimeUpdate={(e) => {
                   const video = e.target as HTMLVideoElement;
-                  const progress = Math.round((video.currentTime / video.duration) * 100);
-                  setVideoProgress(progress);
+                  if (video.duration) {
+                    const progress = Math.round((video.currentTime / video.duration) * 100);
+                    setVideoProgress(progress);
 
-                  // Update progress in database when video reaches certain milestones
-                  if (progress >= 80 && !hasWatchedVideo) {
-                    setHasWatchedVideo(true);
-                    updateProgressMutation.mutate(Math.min(progress, 90)); // Cap at 90% until quiz completion
+                    // Update progress in database when video reaches certain milestones
+                    if (progress >= 80 && !hasWatchedVideo) {
+                      setHasWatchedVideo(true);
+                      updateProgressMutation.mutate(Math.min(progress, 90)); // Cap at 90% until quiz completion
+                    }
                   }
                 }}
                 onEnded={() => {
                   setHasWatchedVideo(true);
+                  setVideoProgress(100);
                   updateProgressMutation.mutate(90); // Video completed, ready for quiz
                 }}
               >
@@ -289,7 +296,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">
-                {!hasWatchedVideo && videoProgress < 80 
+                {videoProgress < 80 && !hasWatchedVideo
                   ? "Watch at least 80% of the video before taking the quiz."
                   : "Complete the quiz to test your understanding of the course material."}
               </p>
@@ -304,7 +311,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               )}
               <Button 
                 onClick={() => setShowQuiz(true)}
-                disabled={showQuiz || (!hasWatchedVideo && videoProgress < 80)}
+                disabled={showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
                 className="w-full"
               >
                 {enrollment.certificateIssued ? "Review Quiz" :

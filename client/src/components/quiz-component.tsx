@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 interface QuizComponentProps {
   quiz: any;
   courseId: string;
-  onComplete: (score: number, needsAcknowledgment: boolean) => void; // Modified to accept response
+  onComplete: (score: number, responseData?: any) => void;
   onBack: () => void;
 }
 
@@ -66,12 +66,8 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
         variant: isPassing ? "default" : "destructive",
       });
 
-      // The onComplete prop is now called with score and a boolean indicating if acknowledgment is needed.
-      if (data.needsAcknowledgment && isPassing) {
-        onComplete(data.score, true);
-      } else {
-        onComplete(data.score, false);
-      }
+      // Call onComplete with the response data
+      onComplete(data.score, data);
     },
     onError: (error: any) => {
       toast({
