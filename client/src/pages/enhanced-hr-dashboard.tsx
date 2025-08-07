@@ -38,6 +38,7 @@ import { useForm } from "react-hook-form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog"; // Import for email assignment dialog
 import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
+import PerformanceMonitor from "@/components/performance-monitor"; // Import PerformanceMonitor
 
 export default function EnhancedHRDashboard() {
   const [, setLocation] = useLocation();
@@ -91,20 +92,20 @@ export default function EnhancedHRDashboard() {
   }, [authData, authLoading, setLocation]);
 
   // Dashboard stats
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ["/api/dashboard-stats"],
     enabled: !!authData?.user,
   });
 
-  // Employees
-  const { data: employees } = useQuery({
-    queryKey: ["/api/employees"],
+  // Courses
+  const { data: courses, refetch: refetchCourses, isLoading: coursesLoading, error: coursesError } = useQuery({
+    queryKey: ["/api/courses"],
     enabled: !!authData?.user,
   });
 
-  // Courses
-  const { data: courses } = useQuery({
-    queryKey: ["/api/courses"],
+  // Employees
+  const { data: employees, refetch: refetchEmployees, isLoading: employeesLoading, error: employeesError } = useQuery({
+    queryKey: ["/api/employees"],
     enabled: !!authData?.user,
   });
 
@@ -421,30 +422,67 @@ export default function EnhancedHRDashboard() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
 
+                {/* Error handling display */}
+                {(statsError || coursesError) && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-red-800 font-medium">Connection Error</h3>
+                        <p className="text-red-600 text-sm">
+                          {statsError?.message || coursesError?.message || 'Unable to load data. Please try again.'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (statsError) queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+                          if (coursesError) refetchCourses();
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{stats?.totalEmployees || 0}</div>
-                      <p className="text-xs text-muted-foreground">
-                        Active employees in system
-                      </p>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                          <Users className="text-blue-600" size={24} />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Employees</p>
+                          {statsLoading ? (
+                            <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                          ) : (
+                            <p className="text-2xl font-bold text-gray-900">{stats?.totalEmployees || 0}</p>
+                          )}
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
 
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Active Courses</CardTitle>
-                      <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{stats?.activeCourses || 0}</div>
-                      <p className="text-xs text-muted-foreground">
-                        Available for enrollment
-                      </p>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                          <BookOpen className="text-green-600" size={24} />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Active Courses</p>
+                          {statsLoading ? (
+                            <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                          ) : (
+                            <p className="text-2xl font-bold text-gray-900">{stats?.activeCourses || 0}</p>
+                          )}
+                          {coursesError && (
+                            <p className="text-xs text-red-500 mt-1">Connection error</p>
+                          )}
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -693,7 +731,7 @@ export default function EnhancedHRDashboard() {
                             <Badge variant={course.isActive ? "default" : "secondary"}>
                               {course.isActive ? "Active" : "Inactive"}
                             </Badge>
-                            
+
                             <Button
                               size="sm"
                               variant="outline"
@@ -1087,6 +1125,7 @@ export default function EnhancedHRDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      <PerformanceMonitor />
     </div>
   );
 }

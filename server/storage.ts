@@ -153,6 +153,10 @@ export class DatabaseStorage implements IStorage {
           videoPath: courseData.videoPath,
           isActive: true,
           createdBy: courseData.createdBy,
+          courseType: courseData.courseType || 'one-time',
+          renewalPeriodMonths: courseData.renewalPeriodMonths || 3,
+          isComplianceCourse: courseData.isComplianceCourse || false,
+          isAutoEnrollNewEmployees: courseData.isAutoEnrollNewEmployees || false,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

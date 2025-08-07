@@ -53,6 +53,26 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Database health check with retry logic
+  const checkDatabaseHealth = async (retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await storage.getDashboardStats();
+        console.log('Database connection healthy');
+        return true;
+      } catch (error) {
+        console.error(`Database health check failed (attempt ${i + 1}):`, error);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1))); // Exponential backoff
+        }
+      }
+    }
+    return false;
+  };
+
+  // Check database health on startup
+  await checkDatabaseHealth();
+
   // Cleanup expired assignments on startup and periodically
   const cleanupExpiredAssignments = async () => {
     try {
@@ -224,7 +244,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const courses = await storage.getAllCourses();
       res.json(courses);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch courses" });
+      console.error('Error fetching courses:', error);
+      if (error.code === '42703') {
+        res.status(500).json({ 
+          message: "Database schema update required. Please restart the application.",
+          error: "Missing course_type column"
+        });
+      } else {
+        res.status(500).json({ 
+          message: "Failed to fetch courses",
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+      }
     }
   });
 
