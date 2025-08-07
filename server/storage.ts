@@ -5,7 +5,7 @@ import {
   type Certificate, type InsertCertificate
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, inArray, lt, gt } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import crypto from 'crypto';
 
@@ -817,12 +817,11 @@ export class DatabaseStorage implements IStorage {
         .update(enrollments)
         .set({ status: "expired" })
         .where(and(
-          sql`${enrollments.deadline} < NOW()`,
-          sql`${enrollments.status} != 'expired'`,
-          sql`${enrollments.status} != 'completed'`
+          lt(enrollments.deadline, new Date()),
+          inArray(enrollments.status, ["pending", "accessed"])
         ));
       return result.rowCount || 0;
-    } catch (error) {
+    } catch (error: any) {
       // Handle case where deadline column doesn't exist yet
       if (error.code === '42703') {
         console.log('Deadline column not found, skipping cleanup');
@@ -830,6 +829,24 @@ export class DatabaseStorage implements IStorage {
       }
       throw error;
     }
+  }
+
+  async resetReminderData(): Promise<number> {
+    // Reset reminder count for enrollments where deadline is more than 10 days past
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+    const result = await db
+      .update(enrollments)
+      .set({ remindersSent: 0 })
+      .where(
+        and(
+          lt(enrollments.deadline, tenDaysAgo),
+          gt(enrollments.remindersSent, 0)
+        )
+      );
+
+    return result.rowCount || 0;
   }
 
   async updateEnrollmentProgress(enrollmentId: string, progress: number, quizScore?: number): Promise<boolean> {
@@ -861,8 +878,8 @@ export class DatabaseStorage implements IStorage {
     try {
       await this.db
         .update(enrollments)
-        .set({ 
-          remindersSent: sql`${enrollments.remindersSent} + 1` 
+        .set({
+          remindersSent: sql`${enrollments.remindersSent} + 1`
         })
         .where(eq(enrollments.id, enrollmentId));
 
@@ -876,8 +893,8 @@ export class DatabaseStorage implements IStorage {
   async getTotalRemindersSent(): Promise<number> {
     try {
       const result = await this.db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(${enrollments.remindersSent}), 0)` 
+        .select({
+          total: sql<number>`COALESCE(SUM(${enrollments.remindersSent}), 0)`
         })
         .from(enrollments);
 

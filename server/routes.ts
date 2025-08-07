@@ -73,12 +73,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check database health on startup
   await checkDatabaseHealth();
 
-  // Cleanup expired assignments on startup and periodically
+  // Cleanup expired assignments and reset reminder data periodically
   const cleanupExpiredAssignments = async () => {
     try {
       const expiredCount = await storage.cleanupExpiredAssignments();
       if (expiredCount > 0) {
         console.log(`Cleaned up ${expiredCount} expired course assignments`);
+      }
+
+      const resetCount = await storage.resetReminderData();
+      if (resetCount > 0) {
+        console.log(`Reset reminder data for ${resetCount} old assignments`);
       }
     } catch (error) {
       console.error('Failed to cleanup expired assignments:', error);
