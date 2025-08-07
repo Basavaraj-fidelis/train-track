@@ -220,21 +220,11 @@ export class Storage {
   }
 
   async getQuizByCourseId(courseId: string): Promise<Quiz | null> {
-    return await this.db
+    const [quiz] = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.courseId, courseId))
-      .limit(1)
-      .then(rows => rows[0] || null);
-  }
-
-  async getCourse(courseId: string): Promise<Course | null> {
-    return await this.db
-      .select()
-      .from(courses)
-      .where(eq(courses.id, courseId))
-      .limit(1)
-      .then(rows => rows[0] || null);
+      .where(eq(quizzes.courseId, courseId));
+    return quiz || null;
   }
 
   async updateQuiz(id: string, quizData: Partial<InsertQuiz>): Promise<Quiz | null> {
@@ -263,13 +253,21 @@ export class Storage {
   }
 
   async getEnrollment(userId: string, courseId: string): Promise<Enrollment | null> {
-    const enrollments = await this.db
+    const enrollmentsList = await db
       .select()
-      .from(enrollmentsTable)
-      .where(and(eq(enrollmentsTable.userId, userId), eq(enrollmentsTable.courseId, courseId)))
+      .from(enrollments)
+      .where(and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId)))
       .limit(1);
 
-    return enrollments[0] || null;
+    return enrollmentsList[0] || null;
+  }
+
+  async getEnrollmentById(userId: string, enrollmentId: string): Promise<Enrollment | null> {
+    const [enrollment] = await db
+      .select()
+      .from(enrollments)
+      .where(and(eq(enrollments.id, enrollmentId), eq(enrollments.userId, userId)));
+    return enrollment || null;
   }
 
   async getEnrollmentByToken(token: string): Promise<Enrollment | null> {
