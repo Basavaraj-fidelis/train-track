@@ -452,23 +452,36 @@ export class DatabaseStorage implements IStorage {
     totalEnrollments: number;
     averageProgress: number;
   }> {
-    const [employeeCount] = await this.db.select({ count: sql`count(*)` }).from(users).where(eq(users.role, "employee"));
-    const [courseCount] = await this.db.select({ count: sql`count(*)` }).from(courses).where(eq(courses.isActive, true));
-    const [pendingCount] = await this.db.select({ count: sql`count(*)` }).from(enrollments).where(isNull(enrollments.completedAt));
-    const [completedCount] = await this.db.select({ count: sql`count(*)` }).from(enrollments).where(sql`${enrollments.completedAt} IS NOT NULL`);
-    const [certCount] = await this.db.select({ count: sql`count(*)` }).from(certificates);
-    const [totalEnrollments] = await this.db.select({ count: sql`count(*)` }).from(enrollments);
-    const [avgProgress] = await this.db.select({ avg: sql`avg(${enrollments.progress})` }).from(enrollments);
+    try {
+      const [employeeCount] = await this.db.select({ count: sql`count(*)` }).from(users).where(eq(users.role, "employee"));
+      const [courseCount] = await this.db.select({ count: sql`count(*)` }).from(courses).where(eq(courses.isActive, true));
+      const [pendingCount] = await this.db.select({ count: sql`count(*)` }).from(enrollments).where(isNull(enrollments.completedAt));
+      const [completedCount] = await this.db.select({ count: sql`count(*)` }).from(enrollments).where(sql`${enrollments.completedAt} IS NOT NULL`);
+      const [certCount] = await this.db.select({ count: sql`count(*)` }).from(certificates);
+      const [totalEnrollments] = await this.db.select({ count: sql`count(*)` }).from(enrollments);
+      const [avgProgress] = await this.db.select({ avg: sql`avg(${enrollments.progress})` }).from(enrollments);
 
-    return {
-      totalEmployees: Number(employeeCount.count) || 0,
-      activeCourses: Number(courseCount.count) || 0,
-      pendingAssignments: Number(pendingCount.count) || 0,
-      certificatesIssued: Number(certCount.count) || 0,
-      completedCourses: Number(completedCount.count) || 0,
-      totalEnrollments: Number(totalEnrollments.count) || 0,
-      averageProgress: Math.round(Number(avgProgress.avg) || 0),
-    };
+      return {
+        totalEmployees: Number(employeeCount.count) || 0,
+        activeCourses: Number(courseCount.count) || 0,
+        pendingAssignments: Number(pendingCount.count) || 0,
+        certificatesIssued: Number(certCount.count) || 0,
+        completedCourses: Number(completedCount.count) || 0,
+        totalEnrollments: Number(totalEnrollments.count) || 0,
+        averageProgress: Math.round(Number(avgProgress.avg) || 0),
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return {
+        totalEmployees: 0,
+        activeCourses: 0,
+        pendingAssignments: 0,
+        certificatesIssued: 0,
+        completedCourses: 0,
+        totalEnrollments: 0,
+        averageProgress: 0,
+      };
+    }
   }
 
   async bulkAssignCourse(courseId: string, userIds: string[]): Promise<Enrollment[]> {
@@ -836,7 +849,7 @@ export class DatabaseStorage implements IStorage {
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
 
-    const result = await db
+    const result = await this.db
       .update(enrollments)
       .set({ remindersSent: 0 })
       .where(
@@ -903,6 +916,27 @@ export class DatabaseStorage implements IStorage {
       console.error("Error getting total reminders sent:", error);
       return 0;
     }
+  }
+
+  // Additional helper methods for backward compatibility
+  async getTotalEmployees(): Promise<number> {
+    const [result] = await this.db.select({ count: sql`count(*)` }).from(users).where(eq(users.role, "employee"));
+    return Number(result.count) || 0;
+  }
+
+  async getTotalActiveCourses(): Promise<number> {
+    const [result] = await this.db.select({ count: sql`count(*)` }).from(courses).where(eq(courses.isActive, true));
+    return Number(result.count) || 0;
+  }
+
+  async getPendingAssignments(): Promise<number> {
+    const [result] = await this.db.select({ count: sql`count(*)` }).from(enrollments).where(isNull(enrollments.completedAt));
+    return Number(result.count) || 0;
+  }
+
+  async getCertificatesIssued(): Promise<number> {
+    const [result] = await this.db.select({ count: sql`count(*)` }).from(certificates);
+    return Number(result.count) || 0;
   }
 }
 

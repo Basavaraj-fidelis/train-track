@@ -789,17 +789,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const totalEmployees = await storage.getTotalEmployees();
-      const activeCourses = await storage.getTotalActiveCourses();
-      const pendingAssignments = await storage.getPendingAssignments();
-      const certificatesIssued = await storage.getCertificatesIssued();
+      const stats = await storage.getDashboardStats();
       const remindersSent = await storage.getTotalRemindersSent();
 
       res.json({
-        totalEmployees,
-        activeCourses,
-        pendingAssignments,
-        certificatesIssued,
+        ...stats,
         remindersSent,
       });
     } catch (error) {
