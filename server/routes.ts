@@ -1111,6 +1111,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Performance metrics endpoint
+  app.get("/api/performance-metrics", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      
+      // Test database response time
+      await storage.getDashboardStats();
+      const dbResponseTime = Date.now() - startTime;
+
+      const metrics = {
+        serverResponseTime: dbResponseTime,
+        activeUsers: 1, // In a real app, you'd track active sessions
+        memoryUsage: process.memoryUsage ? Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100) : 45,
+        cpuUsage: Math.floor(Math.random() * 20) + 15, // Simulated CPU usage
+        uptime: process.uptime ? `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m` : "Unknown",
+        requestsPerMinute: 15, // In a real app, you'd track this
+        dbConnectionStatus: "Connected",
+        totalRequests: 0 // In a real app, you'd track this
+      };
+
+      res.json(metrics);
+    } catch (error) {
+      res.status(500).json({ 
+        message: "Failed to fetch performance metrics",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   // User analytics endpoint
   app.get("/api/user-analytics/:id", requireAdmin, async (req, res) => {
     try {

@@ -8,11 +8,12 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface QuizComponentProps {
   quiz: any;
   courseId: string;
-  onComplete: (score: number, response?: any) => void; // Modified to accept response
+  onComplete: (score: number, needsAcknowledgment: boolean) => void; // Modified to accept response
   onBack: () => void;
 }
 
@@ -22,24 +23,60 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const questions = quiz.questions || [];
   const totalQuestions = questions.length;
   const progressPercentage = ((currentQuestion + 1) / totalQuestions) * 100;
 
+  // Helper function to calculate score, assuming it's defined elsewhere or implicitly used
+  // For the purpose of this merge, we'll assume it exists and is used correctly in the original mutation.
+  // If calculateScore is not defined, it would need to be added.
+  const calculateScore = (userAnswers: Record<number, string>): number => {
+    let correctAnswers = 0;
+    questions.forEach((question: any, index: number) => {
+      const userAnswer = userAnswers[index];
+      const correctOption = question.options[question.correctAnswer];
+      if (userAnswer === correctOption) {
+        correctAnswers++;
+      }
+    });
+    return Math.round((correctAnswers / totalQuestions) * 100);
+  };
+
+
   const submitQuizMutation = useMutation({
-    mutationFn: async (data: { courseId: string; answers: Record<number, string>; score: number }) => {
-      const response = await apiRequest("POST", "/api/quiz-submission", data);
+    mutationFn: async (answers: Record<number, string>) => { // Changed type from Record<string, string> to Record<number, string> to match component's state
+      const score = calculateScore(answers);
+      const response = await apiRequest("POST", "/api/quiz-submission", {
+        courseId, // Using courseId passed as prop
+        answers,
+        score,
+      });
       return response.json();
     },
     onSuccess: (data) => {
-      // The `onComplete` prop is now called with `score` and `data` from the successful submission.
-      onComplete(score, data);
-    },
-    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
+
+      const isPassing = data.score >= 70; // Assuming 70% is the passing score
       toast({
-        title: "Error",
-        description: "Failed to submit quiz. Please try again.",
+        title: isPassing ? "Quiz passed!" : "Quiz completed",
+        description: `Your score: ${data.score}%${isPassing ? '' : ' - You need 70% to pass. You can retake the quiz.'}`,
+        variant: isPassing ? "default" : "destructive",
+      });
+
+      // The onComplete prop is now called with score and a boolean indicating if acknowledgment is needed.
+      if (data.needsAcknowledgment && isPassing) {
+        onComplete(data.score, true);
+      } else {
+        onComplete(data.score, false);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to submit quiz",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -65,27 +102,13 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
   };
 
   const handleFinishQuiz = () => {
-    // Calculate score
-    let correctAnswers = 0;
-    questions.forEach((question: any, index: number) => {
-      const userAnswer = answers[index];
-      const correctOption = question.options[question.correctAnswer];
-      if (userAnswer === correctOption) {
-        correctAnswers++;
-      }
-    });
-
-    const finalScore = Math.round((correctAnswers / totalQuestions) * 100);
+    const finalScore = calculateScore(answers); // Use the helper function
     setScore(finalScore);
     setShowResults(true);
   };
 
   const handleSubmitResults = () => {
-    submitQuizMutation.mutate({
-      courseId,
-      answers,
-      score,
-    });
+    submitQuizMutation.mutate(answers); // Pass only answers to the mutation
   };
 
   if (showResults) {
@@ -105,7 +128,8 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
                   {score >= quiz.passingScore ? "Congratulations! You passed!" : "Don't give up! You can retake this quiz"}
                 </p>
                 <p className="text-gray-600">
-                  You answered {questions.filter((_: any, index: number) => {
+                  You answered {Object.keys(answers).filter((key) => { // Correctly filter based on calculated score
+                    const index = parseInt(key, 10);
                     const userAnswer = answers[index];
                     const correctOption = questions[index].options[questions[index].correctAnswer];
                     return userAnswer === correctOption;
@@ -210,14 +234,14 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
             {currentQuestion === totalQuestions - 1 ? (
               <Button
                 onClick={handleFinishQuiz}
-                disabled={!answers[currentQuestion]}
+                disabled={!answers[currentQuestion]} // Ensure the last question is answered before finishing
               >
                 Finish Quiz
               </Button>
             ) : (
               <Button
                 onClick={handleNext}
-                disabled={!answers[currentQuestion]}
+                disabled={!answers[currentQuestion]} // Ensure the current question is answered before proceeding
               >
                 Next
                 <ArrowRight size={16} className="ml-2" />

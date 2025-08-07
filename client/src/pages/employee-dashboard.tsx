@@ -26,7 +26,6 @@ export default function EmployeeDashboard() {
   const [, setLocation] = useLocation();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("dashboard"); // Assuming activeTab is intended for the tab switching
 
   // Check authentication
   const { data: authData, isLoading: authLoading } = useQuery({
@@ -95,7 +94,6 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("dashboard");
                     setSelectedCourse(null);
-                    setActiveTab("dashboard"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "dashboard" ? "bg-green-50 text-green-600" : ""
@@ -110,7 +108,6 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("courses");
                     setSelectedCourse(null);
-                    setActiveTab("courses"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "courses" ? "bg-green-50 text-green-600" : ""
@@ -125,7 +122,6 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("certificates");
                     setSelectedCourse(null);
-                    setActiveTab("certificates"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "certificates" ? "bg-green-50 text-green-600" : ""
@@ -140,7 +136,6 @@ export default function EmployeeDashboard() {
                   onClick={() => {
                     setActiveSection("profile");
                     setSelectedCourse(null);
-                    setActiveTab("profile"); // Update activeTab
                   }}
                   className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
                     activeSection === "profile" ? "bg-green-50 text-green-600" : ""
@@ -295,68 +290,77 @@ export default function EmployeeDashboard() {
                       </Card>
 
                       {/* Recent Achievements Section */}
-            {activeTab === "dashboard" && (
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Award className="w-5 h-5" />
-                    Certificate Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {certificates && certificates.length > 0 ? (
-                      certificates.slice(0, 5).map((cert: any) => {
-                        // Calculate expiration (assuming 1 year validity for certificates)
-                        const issuedDate = new Date(cert.issuedAt);
-                        const expirationDate = new Date(issuedDate);
-                        expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Award className="w-5 h-5" />
+                            Certificate Status
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {certificates && certificates.length > 0 ? (
+                              certificates.slice(0, 5).map((cert: any) => {
+                                // Use course type and certificate data for proper expiry calculation
+                                const issuedDate = new Date(cert.issuedAt);
+                                let expirationDate = new Date(issuedDate);
+                                
+                                // Check if course is recurring and has expiry data
+                                if (cert.course.courseType === 'recurring' && cert.certificateData?.expiresAt) {
+                                  expirationDate = new Date(cert.certificateData.expiresAt);
+                                } else if (cert.course.renewalPeriodMonths) {
+                                  expirationDate.setMonth(expirationDate.getMonth() + cert.course.renewalPeriodMonths);
+                                } else {
+                                  // Default to 1 year for one-time courses
+                                  expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+                                }
 
-                        const today = new Date();
-                        const isExpired = today > expirationDate;
-                        const daysUntilExpiry = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                        const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+                                const today = new Date();
+                                const isExpired = today > expirationDate;
+                                const daysUntilExpiry = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                                const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
 
-                        return (
-                          <div key={cert.id} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center">
-                              <Award className={`h-8 w-8 mr-3 ${isExpired ? 'text-red-500' : isExpiringSoon ? 'text-yellow-500' : 'text-green-500'}`} />
-                              <div>
-                                <div className="font-medium">{cert.course.title}</div>
-                                <div className="text-sm text-gray-500">
-                                  Completed {new Date(cert.issuedAt).toLocaleDateString()}
-                                </div>
-                                <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : 'text-green-600'}`}>
-                                  {isExpired 
-                                    ? `Expired on ${expirationDate.toLocaleDateString()}`
-                                    : isExpiringSoon
-                                    ? `Expires in ${daysUntilExpiry} days (${expirationDate.toLocaleDateString()})`
-                                    : `Valid until ${expirationDate.toLocaleDateString()}`}
-                                </div>
+                                return (
+                                  <div key={cert.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="flex items-center">
+                                      <Award className={`h-8 w-8 mr-3 ${isExpired ? 'text-red-500' : isExpiringSoon ? 'text-yellow-500' : 'text-green-500'}`} />
+                                      <div>
+                                        <div className="font-medium">{cert.course.title}</div>
+                                        <div className="text-sm text-gray-500">
+                                          Completed {new Date(cert.issuedAt).toLocaleDateString()}
+                                        </div>
+                                        <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : 'text-green-600'}`}>
+                                          {cert.course.courseType === 'one-time' 
+                                            ? 'No expiration (One-time certificate)'
+                                            : isExpired 
+                                            ? `Expired on ${expirationDate.toLocaleDateString()}`
+                                            : isExpiringSoon
+                                            ? `Expires in ${daysUntilExpiry} days (${expirationDate.toLocaleDateString()})`
+                                            : `Valid until ${expirationDate.toLocaleDateString()}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <Badge variant={cert.course.courseType === 'one-time' ? "default" : isExpired ? "destructive" : isExpiringSoon ? "secondary" : "default"}>
+                                        {cert.course.courseType === 'one-time' ? "Permanent" : isExpired ? "Expired" : isExpiringSoon ? "Expiring Soon" : "Valid"}
+                                      </Badge>
+                                      {cert.course.courseType === 'recurring' && (isExpired || isExpiringSoon) && (
+                                        <Badge variant="outline" className="text-xs">
+                                          Renewal Required
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="text-center py-8 text-gray-500">
+                                No certificates earned yet. Complete courses to earn certificates!
                               </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge variant={isExpired ? "destructive" : isExpiringSoon ? "secondary" : "default"}>
-                                {isExpired ? "Expired" : isExpiringSoon ? "Expiring Soon" : "Valid"}
-                              </Badge>
-                              {(isExpired || isExpiringSoon) && (
-                                <Badge variant="outline" className="text-xs">
-                                  Renewal Required
-                                </Badge>
-                              )}
-                            </div>
+                            )}
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        No certificates earned yet. Complete courses to earn certificates!
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                        </CardContent>
+                      </Card>
                     </div>
                   </div>
                 )}

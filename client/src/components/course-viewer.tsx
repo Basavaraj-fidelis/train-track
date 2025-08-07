@@ -15,12 +15,14 @@ interface CourseViewerProps {
 }
 
 export default function CourseViewer({ enrollment }: CourseViewerProps) {
+  const [currentSection, setCurrentSection] = useState("video");
   const [showQuiz, setShowQuiz] = useState(false);
+  const [showAcknowledgment, setShowAcknowledgment] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [hasWatchedVideo, setHasWatchedVideo] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [showAcknowledgment, setShowAcknowledgment] = useState(false);
-
 
   const { data: quiz } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
@@ -33,6 +35,44 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   });
 
   const course = enrollment.course;
+
+  const updateProgressMutation = useMutation({
+    mutationFn: async (progress: number) => {
+      const response = await apiRequest("PUT", `/api/enrollments/${enrollment.id}`, {
+        progress,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+    },
+  });
+
+  const acknowledgeCompletionMutation = useMutation({
+    mutationFn: async ({ digitalSignature }: { digitalSignature: string }) => {
+      const response = await apiRequest("POST", "/api/acknowledge-completion", {
+        courseId: enrollment.course.id,
+        digitalSignature,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
+      setShowAcknowledgment(false);
+      toast({
+        title: "Course completed successfully!",
+        description: "Your certificate has been generated and emailed to you.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to acknowledge completion",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleQuizComplete = async (score: number, responseData?: any) => {
     const passingScore = quiz?.passingScore || 70;
@@ -88,42 +128,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   };
 
   const handleAcknowledge = async (digitalSignature: string) => {
-    try {
-      const response = await fetch("/api/acknowledge-completion", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          courseId: course.id,
-          digitalSignature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to acknowledge completion");
-      }
-
-      // Mark as acknowledged to prevent duplicate modals
-      localStorage.setItem(`acknowledged_${enrollment.courseId}_${enrollment.userId}`, "true");
-
-      // Refresh enrollments and certificates
-      queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
-
-      toast({
-        title: "Certificate Generated!",
-        description: "Your certificate has been generated and sent to your email.",
-      });
-    } catch (error) {
-      console.error("Acknowledgment error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate certificate. Please try again.",
-        variant: "destructive",
-      });
-    }
+    await acknowledgeCompletionMutation.mutateAsync({ digitalSignature });
   };
 
   // Check for completed quiz that needs acknowledgment
@@ -136,7 +141,6 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       }
     }
   }, [enrollment, quiz]);
-
 
   if (showQuiz && quiz) {
     return (
@@ -156,18 +160,32 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
         <CardContent className="pt-6">
           <div className="aspect-video bg-gray-900 rounded-lg mb-4 relative">
             {course.videoPath ? (
+              <div className="w-full bg-gray-900 rounded-lg overflow-hidden">
               <video
+                key={enrollment.course.id}
                 controls
-                className="w-full h-full rounded-lg"
-                poster="/placeholder-video-poster.jpg"
-                onError={(e) => {
-                  console.error('Video error:', e);
-                  setError('Video file not found or corrupted');
+                className="w-full h-auto"
+                style={{ maxHeight: "500px" }}
+                onTimeUpdate={(e) => {
+                  const video = e.target as HTMLVideoElement;
+                  const progress = Math.round((video.currentTime / video.duration) * 100);
+                  setVideoProgress(progress);
+
+                  // Update progress in database when video reaches certain milestones
+                  if (progress >= 80 && !hasWatchedVideo) {
+                    setHasWatchedVideo(true);
+                    updateProgressMutation.mutate(Math.min(progress, 90)); // Cap at 90% until quiz completion
+                  }
+                }}
+                onEnded={() => {
+                  setHasWatchedVideo(true);
+                  updateProgressMutation.mutate(90); // Video completed, ready for quiz
                 }}
               >
                 <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
+            </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center text-white">
@@ -190,8 +208,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Course Overview</h3>
               <div className="flex items-center space-x-2">
-                <Badge variant={enrollment.completedAt ? "default" : "secondary"}>
-                  {enrollment.completedAt ? "Completed" : "In Progress"}
+                <Badge variant={enrollment.progress === 100 ? "default" : "secondary"}>
+                  {enrollment.progress === 100 ? "Completed" : "In Progress"}
                 </Badge>
                 {enrollment.progress > 0 && (
                   <span className="text-sm text-gray-500">{enrollment.progress}% complete</span>
@@ -241,10 +259,10 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   <div className="flex justify-between">
                       <span className="text-gray-600">Status:</span>
                       <span className={`font-medium ${
-                        enrollment.certificateIssued ? 'text-green-600' :
+                        enrollment.progress === 100 ? 'text-green-600' :
                         enrollment.quizScore ? 'text-orange-600' : 'text-blue-600'
                       }`}>
-                        {enrollment.certificateIssued ? 'Completed' :
+                        {enrollment.progress === 100 ? 'Completed' :
                          enrollment.quizScore ? 'Needs Retake' : 'In Progress'}
                       </span>
                     </div>
@@ -258,57 +276,43 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       {/* Quiz Section */}
       {quiz && (
         <Card>
-          <CardHeader>
-            <CardTitle>Course Assessment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-gray-600">
-                Complete this assessment to test your understanding and earn your certificate.
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Course Quiz
+                {enrollment.quizScore && (
+                  <Badge variant={enrollment.quizScore >= 70 ? "default" : "destructive"}>
+                    Score: {enrollment.quizScore}%
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 mb-4">
+                {!hasWatchedVideo && videoProgress < 80 
+                  ? "Watch at least 80% of the video before taking the quiz."
+                  : "Complete the quiz to test your understanding of the course material."}
               </p>
-
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-gray-900">{quiz.title}</h4>
-                  <p className="text-sm text-gray-600">
-                    {quiz.questions?.length || 0} questions • Passing score: {quiz.passingScore}%
-                  </p>
-                  {enrollment.quizScore && (
-                    <p className="text-sm text-green-600 font-medium">
-                      Previous score: {enrollment.quizScore}%
-                    </p>
-                  )}
-                </div>
-                <Button 
-                  onClick={() => setShowQuiz(true)}
-                  className="w-full"
-                  disabled={!enrollment.videoWatched}
-                >
-                  {enrollment.certificateIssued ? "Review Quiz" :
-                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
-                   enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
-                </Button>
-              </div>
-
-              {enrollment.certificateIssued && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-green-900">Certificate Earned!</h4>
-                      <p className="text-sm text-green-700">
-                        You have successfully completed this course and earned your certificate.
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      <Download size={16} className="mr-2" />
-                      Download Certificate
-                    </Button>
+              {videoProgress > 0 && videoProgress < 80 && (
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Video Progress</span>
+                    <span>{videoProgress}%</span>
                   </div>
+                  <Progress value={videoProgress} />
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+              <Button 
+                onClick={() => setShowQuiz(true)}
+                disabled={showQuiz || (!hasWatchedVideo && videoProgress < 80)}
+                className="w-full"
+              >
+                {enrollment.certificateIssued ? "Review Quiz" :
+                 enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
+                 enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
+              </Button>
+            </CardContent>
+          </Card>
       )}
 
         <CertificateAcknowledgmentModal
