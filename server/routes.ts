@@ -655,19 +655,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const certificateEmailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
-              <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: center;">
-                <h3 style="color: #1e40af; margin-bottom: 20px;">This is to certify that</h3>
-                <h2 style="color: #1e3a8a; font-size: 28px; margin: 20px 0;">${user.name}</h2>
-                <p style="font-size: 16px; margin: 20px 0;">has successfully completed the training course</p>
-                <h3 style="color: #1e40af; font-size: 22px; margin: 20px 0;">${course.title}</h3>
-                <div style="margin: 30px 0;">
-                  <p><strong>Score Achieved:</strong> ${enrollment.quizScore}%</p>
+              <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: left;">
+                <p style="font-size: 16px; margin: 20px 0;">I, <strong>${user.name}</strong>, working with Client: <strong>${user.clientName || 'N/A'}</strong>, holding Employee ID: <strong>${user.employeeId}</strong>, hereby acknowledge that I have successfully completed the following course:</p>
+                
+                <div style="margin: 20px 0;">
+                  <p><strong>Course Name:</strong> ${course.title}</p>
                   <p><strong>Completion Date:</strong> ${new Date().toLocaleDateString()}</p>
+                  <p><strong>Score:</strong> ${enrollment.quizScore}%</p>
                   <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
-                  <p><strong>Employee ID:</strong> ${user.employeeId}</p>
-                  <p><strong>Department:</strong> ${user.department}</p>
                 </div>
-                <p style="font-style: italic; margin-top: 30px;">Digital Signature: ${digitalSignature}</p>
+                
+                <p style="font-size: 16px; margin: 20px 0;">I acknowledge that I have attended the training session. I understand the content and importance of the training, along with the company's policies related to it.</p>
+                
+                <p style="font-size: 16px; margin: 20px 0;">I commit to:</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li>Adhering to the guidelines provided in the training</li>
+                  <li>Applying the knowledge responsibly in my role</li>
+                  <li>Maintaining a safe, respectful, and compliant work environment</li>
+                </ul>
+                
+                <p style="font-style: italic; margin-top: 30px; text-align: center;">Digital Signature: ${digitalSignature}</p>
               </div>
               <p style="text-align: center; color: #666; font-size: 12px;">
                 This certificate was digitally generated and acknowledged by the participant.
