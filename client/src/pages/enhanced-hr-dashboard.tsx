@@ -24,7 +24,8 @@ import {
   BookOpen,
   Eye,
   Target,
-  Mail // Added Mail icon import
+  Mail,
+  Activity // Added Activity icon import
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -397,6 +398,7 @@ export default function EnhancedHRDashboard() {
                 { id: "dashboard", label: "Dashboard", icon: BarChart3 },
                 { id: "employees", label: "Employee Directory", icon: Users },
                 { id: "courses", label: "Course Management", icon: Book },
+                { id: "performance", label: "Performance Monitor", icon: Activity },
                 { id: "settings", label: "Settings", icon: Settings },
               ].map((item) => (
                 <button
@@ -508,6 +510,21 @@ export default function EnhancedHRDashboard() {
                       <div className="text-2xl font-bold">{stats?.certificatesIssued || 0}</div>
                       <p className="text-xs text-muted-foreground">
                         Successful completions
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Reminders Sent</CardTitle>
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{stats?.remindersSent || 0}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Email reminders sent
                       </p>
                     </CardContent>
                   </Card>
@@ -789,6 +806,14 @@ export default function EnhancedHRDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            )}
+
+            {/* Performance Section */}
+            {activeSection === "performance" && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">System Performance</h2>
+                <PerformanceMonitor />
               </div>
             )}
 
@@ -1125,7 +1150,6 @@ export default function EnhancedHRDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-      <PerformanceMonitor />
     </div>
   );
 }

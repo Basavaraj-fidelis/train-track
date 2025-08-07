@@ -54,6 +54,33 @@ export default function CourseAssignmentsTracker({
     },
   });
 
+  const sendReminder = useMutation({
+    mutationFn: async (enrollmentId: string) => {
+      const response = await fetch(`/api/enrollments/${enrollmentId}/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error('Failed to send reminder');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Reminder sent",
+        description: "Email reminder has been sent successfully.",
+      });
+      // Refetch data to update UI
+      queryClient.invalidateQueries({ queryKey: ['/api/course-assignments', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard-stats'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send reminder",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       pending: { variant: "secondary" as const, label: "Pending" },

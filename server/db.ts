@@ -34,7 +34,12 @@ async function ensureSchemaUpdates() {
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
-    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent integer DEFAULT 0`);
+    
+    // Add reminders_sent column if it doesn't exist
+    await db.execute(sql`
+      ALTER TABLE enrollments 
+      ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0 NOT NULL
+    `);
 
     console.log('Database schema updates completed successfully');
   } catch (error) {

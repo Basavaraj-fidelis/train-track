@@ -29,7 +29,7 @@ const upload = multer({
     const allowedTypes = /mp4|avi|mov|wmv|webm/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -87,18 +87,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Run cleanup on startup
   cleanupExpiredAssignments();
-  
+
   // Run cleanup every hour
   setInterval(cleanupExpiredAssignments, 60 * 60 * 1000);
-  
+
   // Authentication routes
   app.post("/api/auth/admin-login", async (req, res) => {
     try {
       const { username, password } = req.body;
-      
+
       if (username === "admin" && password === "admin123") {
         let adminUser = await storage.getUserByEmail("admin@traintrack.com");
-        
+
         if (!adminUser) {
           adminUser = await storage.createUser({
             employeeId: "ADMIN001",
@@ -112,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             password: await bcrypt.hash("admin123", 10),
           });
         }
-        
+
         req.session.userId = adminUser.id;
         req.session.userRole = "admin";
         res.json({ success: true, user: adminUser });
@@ -128,12 +128,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/employee-login", async (req, res) => {
     try {
       const { email } = req.body;
-      
+
       const user = await storage.getUserByEmail(email);
       if (!user || user.role !== "employee" || !user.isActive) {
         return res.status(401).json({ message: "Email not found or not authorized. Please contact HR." });
       }
-      
+
       req.session.userId = user.id;
       req.session.userRole = "employee";
       res.json({ success: true, user });
@@ -152,12 +152,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
-    
+
     res.json({ user });
   });
 
@@ -193,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
-      
+
       const employee = await storage.createUser(userData);
       res.json(employee);
     } catch (error) {
@@ -209,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
-      
+
       const updatedEmployee = await storage.updateUser(req.params.id, userData);
       if (updatedEmployee) {
         res.json(updatedEmployee);
@@ -263,9 +263,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Course creation request body:', req.body);
       console.log('Course creation file:', req.file);
       console.log('Session during course creation:', req.session);
-      
+
       const { title, description, questions, courseType } = req.body;
-      
+
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
       }
@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         return res.status(400).json({ message: "Video file is required" });
       }
-      
+
       let parsedQuestions = [];
       if (questions) {
         try {
@@ -283,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid questions format" });
         }
       }
-      
+
       const courseData = {
         title: title.trim(),
         description: description.trim(),
@@ -293,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         questions: parsedQuestions,
         courseType: courseType || 'one-time'
       };
-      
+
       const course = await storage.createCourse(courseData);
       res.json(course);
     } catch (error) {
@@ -354,18 +354,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const filename = req.params.filename;
       const videoPath = path.join(process.cwd(), "server/uploads", filename);
-      
+
       console.log(`Attempting to serve video: ${videoPath}`);
-      
+
       if (!fs.existsSync(videoPath)) {
         console.error(`Video file not found: ${videoPath}`);
         return res.status(404).json({ message: "Video not found" });
       }
-      
+
       const stat = fs.statSync(videoPath);
       const fileSize = stat.size;
       const range = req.headers.range;
-      
+
       if (range) {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         courseId: req.params.courseId,
       });
-      
+
       const quiz = await storage.createQuiz(quizData);
       res.json(quiz);
     } catch (error) {
@@ -425,7 +425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const quizData = insertQuizSchema.parse(req.body);
       const updatedQuiz = await storage.updateQuiz(req.params.id, quizData);
-      
+
       if (updatedQuiz) {
         res.json(updatedQuiz);
       } else {
@@ -459,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
+
       const enrollments = await storage.getUserEnrollments(req.session.userId);
       res.json(enrollments);
     } catch (error) {
@@ -470,12 +470,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/enroll", requireAdmin, async (req, res) => {
     try {
       const { userId, courseId } = req.body;
-      
+
       const existing = await storage.getEnrollment(userId, courseId);
       if (existing) {
         return res.status(400).json({ message: "User already enrolled in this course" });
       }
-      
+
       const enrollment = await storage.createEnrollment({ userId, courseId });
       res.json(enrollment);
     } catch (error) {
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         certificateIssued,
         completedAt: certificateIssued ? new Date() : null
       });
-      
+
       if (updatedEnrollment) {
         res.json(updatedEnrollment);
       } else {
@@ -554,34 +554,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
+
       const { courseId, answers, score } = req.body;
       console.log('Quiz submission data:', { courseId, score, userId: req.session.userId });
-      
+
       const enrollment = await storage.getEnrollment(req.session.userId, courseId);
       if (!enrollment) {
         return res.status(400).json({ message: "Not enrolled in this course" });
       }
-      
+
       // Get quiz to check passing score
       const quiz = await storage.getQuizByCourseId(courseId);
       const passingScore = quiz?.passingScore || 70;
       const isPassing = score >= passingScore;
-      
+
       console.log('Quiz validation:', { passingScore, isPassing, currentScore: score });
-      
+
       // Update enrollment with latest quiz attempt
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
         progress: isPassing ? 100 : 90, // Mark as 90% if not passing to allow retake
         completedAt: isPassing ? new Date() : null, // Only mark completed if passing
       });
-      
+
       let certificate = null;
-      
+
       // Don't auto-generate certificate here - wait for acknowledgment
       console.log('Quiz passed - awaiting acknowledgment for certificate generation');
-      
+
       res.json({ 
         success: true, 
         score, 
@@ -604,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
+
       const certificates = await storage.getUserCertificates(req.session.userId);
       res.json(certificates);
     } catch (error) {
@@ -633,18 +633,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get quiz to check passing score
       const quiz = await storage.getQuizByCourseId(courseId);
       const passingScore = quiz?.passingScore || 70;
-      
+
       if (!enrollment.quizScore || enrollment.quizScore < passingScore) {
         return res.status(400).json({ message: "Quiz must be completed with passing score before acknowledgment" });
       }
 
       // Check if certificate already exists for this course (replace if exists)
       const existingCertificate = await storage.getUserCertificateForCourse(req.session.userId, courseId);
-      
+
       let certificate;
       const user = await storage.getUser(req.session.userId);
       const course = await storage.getCourse(courseId);
-      
+
       // Calculate expiry date based on course type
       let expiresAt = null;
       if (course?.courseType === 'recurring') {
@@ -701,23 +701,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
               <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: left;">
                 <p style="font-size: 16px; margin: 20px 0;">I, <strong>${user.name}</strong>, working with Client: <strong>${user.clientName || 'N/A'}</strong>, holding Employee ID: <strong>${user.employeeId}</strong>, hereby acknowledge that I have successfully completed the following course:</p>
-                
+
                 <div style="margin: 20px 0;">
                   <p><strong>Course Name:</strong> ${course.title}</p>
                   <p><strong>Completion Date:</strong> ${new Date().toLocaleDateString()}</p>
                   <p><strong>Score:</strong> ${enrollment.quizScore}%</p>
                   <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
                 </div>
-                
+
                 <p style="font-size: 16px; margin: 20px 0;">I acknowledge that I have attended the training session. I understand the content and importance of the training, along with the company's policies related to it.</p>
-                
+
                 <p style="font-size: 16px; margin: 20px 0;">I commit to:</p>
                 <ul style="margin: 10px 0; padding-left: 20px;">
                   <li>Adhering to the guidelines provided in the training</li>
                   <li>Applying the knowledge responsibly in my role</li>
                   <li>Maintaining a safe, respectful, and compliant work environment</li>
                 </ul>
-                
+
                 <p style="font-style: italic; margin-top: 30px; text-align: center;">Digital Signature: ${digitalSignature}</p>
               </div>
               <p style="text-align: center; color: #666; font-size: 12px;">
@@ -780,9 +780,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
   app.get("/api/dashboard-stats", requireAdmin, async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
-      res.json(stats);
+      if (req.session.userRole !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const totalEmployees = await storage.getTotalEmployees();
+      const activeCourses = await storage.getTotalActiveCourses();
+      const pendingAssignments = await storage.getPendingAssignments();
+      const certificatesIssued = await storage.getCertificatesIssued();
+      const remindersSent = await storage.getTotalRemindersSent();
+
+      res.json({
+        totalEmployees,
+        activeCourses,
+        pendingAssignments,
+        certificatesIssued,
+        remindersSent,
+      });
     } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
   });
@@ -799,7 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/bulk-import-employees", requireAdmin, async (req, res) => {
     try {
       const { employees } = req.body; // Array of employee data
-      
+
       if (!Array.isArray(employees) || employees.length === 0) {
         return res.status(400).json({ message: "Employee data array is required" });
       }
@@ -815,7 +831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Check if employee exists by employeeId or email
           const existingUser = await storage.getUserByEmail(empData.email) || 
                               await storage.getUserByEmployeeId(empData.employeeId);
-          
+
           if (existingUser) {
             // Update existing employee
             await storage.updateUser(existingUser.id, {
@@ -833,7 +849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isActive: empData.isActive !== false
             });
             results.created++;
-            
+
             // Auto-enroll in compliance courses
             await storage.autoEnrollInComplianceCourses(empData.employeeId || empData.email);
           }
@@ -854,7 +870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/deactivate-employees", requireAdmin, async (req, res) => {
     try {
       const { employeeIds } = req.body;
-      
+
       const results = await storage.deactivateEmployees(employeeIds);
       res.json({ message: `Deactivated ${results} employees successfully` });
     } catch (error) {
@@ -874,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/renew-expired-certifications", requireAdmin, async (req, res) => {
     try {
       const { courseId, userIds } = req.body;
-      
+
       const renewedEnrollments = await storage.renewExpiredCertifications(courseId, userIds);
       res.json({ 
         message: `Renewed ${renewedEnrollments.length} certifications`,
@@ -918,7 +934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const assignment of assignments) {
         try {
           const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`;
-          
+
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
             to: assignment.assignedEmail,
@@ -963,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/course-access/:token", async (req, res) => {
     try {
       const enrollment = await storage.getEnrollmentByToken(req.params.token);
-      
+
       if (!enrollment || enrollment.status === "expired") {
         return res.status(404).json({ message: "Invalid or expired access link" });
       }
@@ -989,7 +1005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/complete-profile", async (req, res) => {
     try {
       const { token, userData } = req.body;
-      
+
       const enrollment = await storage.getEnrollmentByToken(token);
       if (!enrollment) {
         return res.status(404).json({ message: "Invalid access token" });
@@ -1052,10 +1068,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const loginLink = assignment.assignmentToken 
             ? `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`
             : `${req.protocol}://${req.get('host')}/employee-login`;
-          
+
           const recipientEmail = assignment.assignedEmail || assignment.user?.email;
           if (!recipientEmail) continue;
-          
+
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
             to: recipientEmail,
@@ -1080,7 +1096,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             `,
           });
-          
+
           // Increment reminder count for this enrollment
           await storage.incrementReminderCount(assignment.id);
           sentCount++;

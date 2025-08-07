@@ -77,6 +77,9 @@ export interface IStorage {
   getCourseAssignments(courseId: string): Promise<any[]>;
   sendCourseReminders(courseId: string, pendingOnly?: boolean): Promise<number>;
   cleanupExpiredAssignments(): Promise<number>;
+  updateEnrollmentProgress(enrollmentId: string, progress: number, quizScore?: number): Promise<boolean>;
+  incrementRemindersSent(enrollmentId: string): Promise<boolean>;
+  getTotalRemindersSent(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -204,7 +207,7 @@ export class DatabaseStorage implements IStorage {
             isAutoEnrollNewEmployees: courseData.isAutoEnrollNewEmployees || false,
           })
           .returning();
-          
+
         return course;
       } catch (error: any) {
         if (error.code === '42703') {
@@ -799,7 +802,7 @@ export class DatabaseStorage implements IStorage {
     try {
       await this.db
         .update(enrollments)
-        .set({ remindersSent: sql`COALESCE(${enrollments.remindersSent}, 0) + 1` })
+        .set({ remindersSent: sql`${enrollments.remindersSent} + 1` })
         .where(eq(enrollments.id, enrollmentId));
     } catch (error) {
       console.error('Failed to increment reminder count:', error);
@@ -826,6 +829,62 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
       throw error;
+    }
+  }
+
+  async updateEnrollmentProgress(enrollmentId: string, progress: number, quizScore?: number): Promise<boolean> {
+    try {
+      const updateData: any = { progress };
+      if (quizScore !== undefined) {
+        updateData.quizScore = quizScore;
+      }
+
+      // Mark as completed if progress is 100%
+      if (progress >= 100) {
+        updateData.completedAt = new Date();
+        updateData.certificateIssued = true;
+      }
+
+      await this.db
+        .update(enrollments)
+        .set(updateData)
+        .where(eq(enrollments.id, enrollmentId));
+
+      return true;
+    } catch (error) {
+      console.error("Error updating enrollment progress:", error);
+      return false;
+    }
+  }
+
+  async incrementRemindersSent(enrollmentId: string): Promise<boolean> {
+    try {
+      await this.db
+        .update(enrollments)
+        .set({ 
+          remindersSent: sql`${enrollments.remindersSent} + 1` 
+        })
+        .where(eq(enrollments.id, enrollmentId));
+
+      return true;
+    } catch (error) {
+      console.error("Error incrementing reminders sent:", error);
+      return false;
+    }
+  }
+
+  async getTotalRemindersSent(): Promise<number> {
+    try {
+      const result = await this.db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(${enrollments.remindersSent}), 0)` 
+        })
+        .from(enrollments);
+
+      return result[0]?.total || 0;
+    } catch (error) {
+      console.error("Error getting total reminders sent:", error);
+      return 0;
     }
   }
 }
