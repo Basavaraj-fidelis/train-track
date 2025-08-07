@@ -242,6 +242,8 @@ var DatabaseStorage = class {
     return await this.db.select().from(users).where(eq(users.role, "employee"));
   }
   async deleteUser(id) {
+    await this.db.delete(certificates).where(eq(certificates.userId, id));
+    await this.db.delete(enrollments).where(eq(enrollments.userId, id));
     const result = await this.db.delete(users).where(eq(users.id, id));
     return (result.rowCount || 0) > 0;
   }
@@ -298,6 +300,9 @@ var DatabaseStorage = class {
     return updated || void 0;
   }
   async deleteCourse(id) {
+    await this.db.delete(certificates).where(eq(certificates.courseId, id));
+    await this.db.delete(enrollments).where(eq(enrollments.courseId, id));
+    await this.db.delete(quizzes).where(eq(quizzes.courseId, id));
     const result = await this.db.update(courses).set({ isActive: false }).where(eq(courses.id, id));
     return (result.rowCount || 0) > 0;
   }
@@ -313,6 +318,10 @@ var DatabaseStorage = class {
     const [updated] = await this.db.update(quizzes).set(quiz).where(eq(quizzes.id, id)).returning();
     return updated || void 0;
   }
+  async deleteQuiz(id) {
+    const result = await this.db.delete(quizzes).where(eq(quizzes.id, id));
+    return (result.rowCount || 0) > 0;
+  }
   async getEnrollment(userId, courseId) {
     const [enrollment] = await this.db.select().from(enrollments).where(and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId)));
     return enrollment || void 0;
@@ -327,6 +336,33 @@ var DatabaseStorage = class {
   async updateEnrollment(id, enrollment) {
     const [updated] = await this.db.update(enrollments).set(enrollment).where(eq(enrollments.id, id)).returning();
     return updated || void 0;
+  }
+  async deleteEnrollment(id) {
+    const result = await this.db.delete(enrollments).where(eq(enrollments.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+  async getAllEnrollments() {
+    return await this.db.select({
+      id: enrollments.id,
+      userId: enrollments.userId,
+      courseId: enrollments.courseId,
+      enrolledAt: enrollments.enrolledAt,
+      completedAt: enrollments.completedAt,
+      progress: enrollments.progress,
+      quizScore: enrollments.quizScore,
+      certificateIssued: enrollments.certificateIssued,
+      status: enrollments.status,
+      deadline: enrollments.deadline,
+      user: {
+        name: users.name,
+        email: users.email,
+        employeeId: users.employeeId
+      },
+      course: {
+        title: courses.title,
+        description: courses.description
+      }
+    }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).leftJoin(courses, eq(enrollments.courseId, courses.id));
   }
   async getCourseEnrollments(courseId) {
     return await this.db.select().from(enrollments).innerJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId)).then((results) => results.map((result) => ({ ...result.enrollments, user: result.users })));
@@ -352,6 +388,31 @@ var DatabaseStorage = class {
   async getCertificate(id) {
     const [certificate] = await this.db.select().from(certificates).where(eq(certificates.id, id));
     return certificate || void 0;
+  }
+  async getAllCertificates() {
+    return await this.db.select({
+      id: certificates.id,
+      userId: certificates.userId,
+      courseId: certificates.courseId,
+      enrollmentId: certificates.enrollmentId,
+      issuedAt: certificates.issuedAt,
+      certificateData: certificates.certificateData,
+      digitalSignature: certificates.digitalSignature,
+      acknowledgedAt: certificates.acknowledgedAt,
+      user: {
+        name: users.name,
+        email: users.email,
+        employeeId: users.employeeId
+      },
+      course: {
+        title: courses.title,
+        description: courses.description
+      }
+    }).from(certificates).leftJoin(users, eq(certificates.userId, users.id)).leftJoin(courses, eq(certificates.courseId, courses.id));
+  }
+  async deleteCertificate(id) {
+    const result = await this.db.delete(certificates).where(eq(certificates.id, id));
+    return (result.rowCount || 0) > 0;
   }
   async getDashboardStats() {
     const [employeeCount] = await this.db.select({ count: sql2`count(*)` }).from(users).where(eq(users.role, "employee"));
@@ -929,6 +990,35 @@ async function registerRoutes(app2) {
       }
     }
   });
+  app2.put("/api/quizzes/:id", requireAdmin, async (req, res) => {
+    try {
+      const quizData = insertQuizSchema.parse(req.body);
+      const updatedQuiz = await storage.updateQuiz(req.params.id, quizData);
+      if (updatedQuiz) {
+        res.json(updatedQuiz);
+      } else {
+        res.status(404).json({ message: "Quiz not found" });
+      }
+    } catch (error) {
+      if (error instanceof z2.ZodError) {
+        res.status(400).json({ message: "Invalid quiz data", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Failed to update quiz" });
+      }
+    }
+  });
+  app2.delete("/api/quizzes/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteQuiz(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Quiz not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete quiz" });
+    }
+  });
   app2.get("/api/my-enrollments", async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -951,6 +1041,64 @@ async function registerRoutes(app2) {
       res.json(enrollment);
     } catch (error) {
       res.status(500).json({ message: "Failed to enroll user" });
+    }
+  });
+  app2.get("/api/enrollments", requireAdmin, async (req, res) => {
+    try {
+      const enrollments2 = await storage.getAllEnrollments();
+      res.json(enrollments2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch enrollments" });
+    }
+  });
+  app2.put("/api/enrollments/:id", requireAdmin, async (req, res) => {
+    try {
+      const { progress, quizScore, certificateIssued } = req.body;
+      const updatedEnrollment = await storage.updateEnrollment(req.params.id, {
+        progress,
+        quizScore,
+        certificateIssued,
+        completedAt: certificateIssued ? /* @__PURE__ */ new Date() : null
+      });
+      if (updatedEnrollment) {
+        res.json(updatedEnrollment);
+      } else {
+        res.status(404).json({ message: "Enrollment not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update enrollment" });
+    }
+  });
+  app2.delete("/api/enrollments/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteEnrollment(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Enrollment not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete enrollment" });
+    }
+  });
+  app2.get("/api/certificates", requireAdmin, async (req, res) => {
+    try {
+      const certificates2 = await storage.getAllCertificates();
+      res.json(certificates2);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch certificates" });
+    }
+  });
+  app2.delete("/api/certificates/:id", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteCertificate(req.params.id);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Certificate not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete certificate" });
     }
   });
   app2.post("/api/quiz-submission", async (req, res) => {
@@ -1057,28 +1205,54 @@ async function registerRoutes(app2) {
       });
       try {
         if (user && course) {
+          const certificateEmailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
+              <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: center;">
+                <h3 style="color: #1e40af; margin-bottom: 20px;">This is to certify that</h3>
+                <h2 style="color: #1e3a8a; font-size: 28px; margin: 20px 0;">${user.name}</h2>
+                <p style="font-size: 16px; margin: 20px 0;">has successfully completed the training course</p>
+                <h3 style="color: #1e40af; font-size: 22px; margin: 20px 0;">${course.title}</h3>
+                <div style="margin: 30px 0;">
+                  <p><strong>Score Achieved:</strong> ${enrollment.quizScore}%</p>
+                  <p><strong>Completion Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</p>
+                  <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
+                  <p><strong>Employee ID:</strong> ${user.employeeId}</p>
+                  <p><strong>Department:</strong> ${user.department}</p>
+                </div>
+                <p style="font-style: italic; margin-top: 30px;">Digital Signature: ${digitalSignature}</p>
+              </div>
+              <p style="text-align: center; color: #666; font-size: 12px;">
+                This certificate was digitally generated and acknowledged by the participant.
+              </p>
+            </div>
+          `;
           await transporter.sendMail({
             from: process.env.SMTP_FROM || "noreply@traintrack.com",
             to: user.email,
             subject: `Certificate of Completion: ${course.title}`,
+            html: certificateEmailHtml
+          });
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || "noreply@traintrack.com",
+            to: process.env.SMTP_FROM || "noreply@traintrack.com",
+            subject: `Certificate Issued: ${user.name} - ${course.title}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
-                <div style="border: 2px solid #2563eb; padding: 30px; margin: 20px 0; text-align: center;">
-                  <h3 style="color: #1e40af; margin-bottom: 20px;">This is to certify that</h3>
-                  <h2 style="color: #1e3a8a; font-size: 28px; margin: 20px 0;">${user.name}</h2>
-                  <p style="font-size: 16px; margin: 20px 0;">has successfully completed the training course</p>
-                  <h3 style="color: #1e40af; font-size: 22px; margin: 20px 0;">${course.title}</h3>
-                  <div style="margin: 30px 0;">
-                    <p><strong>Score Achieved:</strong> ${enrollment.quizScore}%</p>
-                    <p><strong>Completion Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</p>
-                    <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
-                  </div>
-                  <p style="font-style: italic; margin-top: 30px;">Digital Signature: ${digitalSignature}</p>
+                <h2 style="color: #2563eb;">Certificate Issued - HR Notification</h2>
+                <p>A certificate has been issued to the following employee:</p>
+                <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <p><strong>Employee:</strong> ${user.name}</p>
+                  <p><strong>Employee ID:</strong> ${user.employeeId}</p>
+                  <p><strong>Email:</strong> ${user.email}</p>
+                  <p><strong>Department:</strong> ${user.department}</p>
+                  <p><strong>Course:</strong> ${course.title}</p>
+                  <p><strong>Score:</strong> ${enrollment.quizScore}%</p>
+                  <p><strong>Completion Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleDateString()}</p>
+                  <p><strong>Certificate ID:</strong> ${certificateData.certificateId}</p>
+                  <p><strong>Digital Signature:</strong> ${digitalSignature}</p>
                 </div>
-                <p style="text-align: center; color: #666; font-size: 12px;">
-                  This certificate was digitally generated and acknowledged by the participant.
-                </p>
+                ${certificateEmailHtml}
               </div>
             `
           });
