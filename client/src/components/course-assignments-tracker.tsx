@@ -151,7 +151,17 @@ export default function CourseAssignmentsTracker({
                       <TableCell>
                         {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A"}
                       </TableCell>
-                      <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          assignment.status === "completed" ? "default" :
+                          assignment.status === "expired" ? "destructive" :
+                          assignment.status === "accessed" ? "outline" : "secondary"
+                        }>
+                          {assignment.status === "pending" && !assignment.userId ? "Email Sent" :
+                           assignment.status === "accessed" ? "In Progress" :
+                           assignment.status || "pending"}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <div className="w-16 bg-gray-200 rounded-full h-2">

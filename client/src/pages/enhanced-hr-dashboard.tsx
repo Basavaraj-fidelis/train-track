@@ -1004,9 +1004,12 @@ export default function EnhancedHRDashboard() {
       {/* Course Enrollments Dialog */}
       <Dialog open={!!selectedCourseEnrollments} onOpenChange={() => setSelectedCourseEnrollments(null)}>
         <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Course Assignments: {selectedCourseEnrollments?.title}</DialogTitle>
-          </DialogHeader>
+          <CardHeader>
+            <CardTitle>Course Assignments: {selectedCourseEnrollments?.title}</CardTitle>
+            <p className="text-sm text-gray-600">
+              Users assigned via email will receive unique access links. They don't login with email directly.
+            </p>
+          </CardHeader>
           <div className="max-h-96 overflow-y-auto">
             {courseEnrollments && courseEnrollments.length > 0 ? (
               <Table>
