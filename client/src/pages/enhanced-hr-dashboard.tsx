@@ -131,18 +131,20 @@ export default function EnhancedHRDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      // Force refetch for immediate UI updates
+      queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+      queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
       setAddEmployeeOpen(false);
+      employeeForm.reset();
       toast({
         title: "Success",
         description: "Employee added successfully!",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to add employee",
+        description: error.message || "Failed to add employee",
         variant: "destructive",
       });
     },
@@ -159,8 +161,9 @@ export default function EnhancedHRDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      // Force refetch for immediate UI updates
+      queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+      queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
       setEditEmployeeOpen(false);
       setEditingEmployee(null);
       toast({
@@ -168,10 +171,10 @@ export default function EnhancedHRDashboard() {
         description: "Employee updated successfully!",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to update employee",
+        description: error.message || "Failed to update employee",
         variant: "destructive",
       });
     },
@@ -183,11 +186,19 @@ export default function EnhancedHRDashboard() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      // Force refetch instead of just invalidating
+      queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+      queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
       toast({
         title: "Employee deleted",
         description: "Employee has been removed from the system.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete employee",
+        variant: "destructive",
       });
     },
   });
@@ -246,7 +257,9 @@ export default function EnhancedHRDashboard() {
     if (confirm('Are you sure you want to delete this course?')) {
       try {
         await apiRequest('DELETE', `/api/courses/${courseId}`);
-        queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+        // Force refetch for immediate UI updates
+        queryClient.refetchQueries({ queryKey: ["/api/courses"] });
+        queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
         toast({
           title: "Course deleted",
           description: "Course has been successfully deleted.",

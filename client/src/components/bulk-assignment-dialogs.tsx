@@ -37,13 +37,14 @@ export function BulkAssignCourseDialog({
       return response.json();
     },
     onSuccess: (data) => {
+      // Force refetch for immediate updates
+      queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+      queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
+      onOpenChange(false);
       toast({
         title: "Success",
-        description: data.message,
+        description: `Course assigned to ${data.assignedCount} employees`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
-      onOpenChange(false);
-      setSelectedUsers([]);
     },
     onError: (error: any) => {
       toast({
