@@ -25,12 +25,20 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Debug logging
+  console.log('CourseViewer enrollment data:', enrollment);
+  console.log('Course data:', enrollment?.course);
+  console.log('CourseId from enrollment.courseId:', enrollment?.courseId);
+  console.log('CourseId from enrollment.course.id:', enrollment?.course?.id);
+
+
+  const courseId = enrollment?.course?.id || enrollment?.courseId;
 
   const { data: quiz, isLoading: quizLoading, error: quizError, refetch } = useQuery({
-    queryKey: ["/api/courses", enrollment.courseId, "quiz"],
+    queryKey: ["/api/courses", courseId, "quiz"],
     queryFn: async () => {
-      console.log('Fetching quiz for course:', enrollment.courseId);
-      const response = await apiRequest("GET", `/api/courses/${enrollment.courseId}/quiz`);
+      console.log('Fetching quiz for course:', courseId);
+      const response = await apiRequest("GET", `/api/courses/${courseId}/quiz`);
       if (!response.ok) {
         if (response.status === 404) {
           console.log('No quiz found for this course');
@@ -42,7 +50,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       console.log('Quiz data received:', quizData);
       return quizData;
     },
-    enabled: !!enrollment.courseId && hasWatchedVideo,
+    enabled: !!courseId && hasWatchedVideo,
     retry: 3,
     retryDelay: 1000
   });
@@ -75,7 +83,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const acknowledgeCompletionMutation = useMutation({
     mutationFn: async ({ digitalSignature }: { digitalSignature: string }) => {
       const response = await apiRequest("POST", "/api/acknowledge-completion", {
-        courseId: enrollment.course.id,
+        courseId: courseId,
         digitalSignature,
       });
       return response.json();
@@ -127,7 +135,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          courseId: course.id,
+          courseId: courseId,
           answers,
           score
         })
@@ -178,7 +186,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     return (
       <QuizComponent
         quiz={quiz}
-        courseId={enrollment.courseId}
+        courseId={courseId}
         onComplete={handleQuizComplete}
         onBack={() => setShowQuiz(false)}
       />
