@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -23,8 +23,10 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const { data: quiz } = useQuery({
+
+  const { data: quiz, refetch } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
     queryFn: () => apiRequest("GET", `/api/courses/${enrollment.courseId}/quiz`).then(res => res.json()),
     enabled: !!enrollment.courseId,
@@ -168,19 +170,18 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               <div className="w-full bg-gray-900 rounded-lg overflow-hidden">
               <video
                 key={enrollment.course.id}
+                ref={videoRef}
                 controls
                 className="w-full h-auto"
                 style={{ maxHeight: "500px" }}
                 onTimeUpdate={(e) => {
                   const video = e.target as HTMLVideoElement;
                   if (video.duration && video.currentTime) {
-                    const progress = Math.round((video.currentTime / video.duration) * 100);
-                    setVideoProgress(progress);
+                    const progressPercent = Math.round((video.currentTime / video.duration) * 100);
+                    setVideoProgress(progressPercent);
 
-                    // Update progress in database when video reaches 80%
-                    if (progress >= 80 && !hasWatchedVideo) {
+                    if (video.currentTime / video.duration >= 0.8 && !hasWatchedVideo) {
                       setHasWatchedVideo(true);
-                      updateProgressMutation.mutate(80);
                     }
                   }
                 }}
@@ -309,7 +310,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               <Progress value={videoProgress} />
             </div>
           )}
-          <Button 
+          <Button
             onClick={() => setShowQuiz(true)}
             disabled={!quiz || showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
             className="w-full"

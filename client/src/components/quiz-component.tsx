@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 interface QuizComponentProps {
   quiz: any;
   courseId: string;
-  onComplete: (score: number, responseData?: any) => void;
+  onComplete: (score: number, passed: boolean) => void; // Updated to accept boolean for passed status
   onBack: () => void;
 }
 
@@ -27,31 +27,31 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
 
   const questions = quiz.questions || [];
   const totalQuestions = questions.length;
-  const progressPercentage = ((currentQuestion + 1) / totalQuestions) * 100;
+  const progressPercentage = totalQuestions > 0 ? ((currentQuestion + 1) / totalQuestions) * 100 : 0;
 
-  // Helper function to calculate score, assuming it's defined elsewhere or implicitly used
-  // For the purpose of this merge, we'll assume it exists and is used correctly in the original mutation.
-  // If calculateScore is not defined, it would need to be added.
   const calculateScore = (userAnswers: Record<number, string>): number => {
     let correctAnswers = 0;
     questions.forEach((question: any, index: number) => {
       const userAnswer = userAnswers[index];
-      const correctOption = question.options[question.correctAnswer];
-      if (userAnswer === correctOption) {
-        correctAnswers++;
+      // Ensure correctAnswer index is valid and option exists
+      if (question.options && question.correctAnswer !== undefined && question.options[question.correctAnswer]) {
+        const correctOption = question.options[question.correctAnswer];
+        if (userAnswer === correctOption) {
+          correctAnswers++;
+        }
       }
     });
-    return Math.round((correctAnswers / totalQuestions) * 100);
+    return totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
   };
 
 
   const submitQuizMutation = useMutation({
-    mutationFn: async (answers: Record<number, string>) => { // Changed type from Record<string, string> to Record<number, string> to match component's state
-      const score = calculateScore(answers);
+    mutationFn: async (answers: Record<number, string>) => {
+      const finalScore = calculateScore(answers);
       const response = await apiRequest("POST", "/api/quiz-submission", {
-        courseId, // Using courseId passed as prop
+        courseId,
         answers,
-        score,
+        score: finalScore,
       });
       return response.json();
     },
@@ -59,15 +59,14 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
       queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
 
-      const isPassing = data.score >= 70; // Assuming 70% is the passing score
+      const isPassing = data.score >= (quiz.passingScore || 70); // Use quiz.passingScore or default to 70
       toast({
         title: isPassing ? "Quiz passed!" : "Quiz completed",
         description: `Your score: ${data.score}%${isPassing ? '' : ' - You need 70% to pass. You can retake the quiz.'}`,
         variant: isPassing ? "default" : "destructive",
       });
 
-      // Call onComplete with the response data
-      onComplete(data.score, data);
+      onComplete(data.score, isPassing);
     },
     onError: (error: any) => {
       toast({
@@ -98,13 +97,13 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
   };
 
   const handleFinishQuiz = () => {
-    const finalScore = calculateScore(answers); // Use the helper function
+    const finalScore = calculateScore(answers);
     setScore(finalScore);
     setShowResults(true);
   };
 
   const handleSubmitResults = () => {
-    submitQuizMutation.mutate(answers); // Pass only answers to the mutation
+    submitQuizMutation.mutate(answers);
   };
 
   if (showResults) {
@@ -116,28 +115,33 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
           </CardHeader>
           <CardContent className="text-center space-y-6">
             <div className="space-y-4">
-              <div className={`text-6xl font-bold ${score >= quiz.passingScore ? 'text-green-600' : 'text-orange-600'}`}>
+              <div className={`text-6xl font-bold ${score >= (quiz.passingScore || 70) ? 'text-green-600' : 'text-orange-600'}`}>
                 {score}%
               </div>
               <div className="space-y-2">
                 <p className="text-lg font-medium">
-                  {score >= quiz.passingScore ? "Congratulations! You passed!" : "Don't give up! You can retake this quiz"}
+                  {score >= (quiz.passingScore || 70) ? "Congratulations! You passed!" : "Don't give up! You can retake this quiz"}
                 </p>
                 <p className="text-gray-600">
-                  You answered {Object.keys(answers).filter((key) => { // Correctly filter based on calculated score
+                  You answered {Object.keys(answers).filter((key) => {
                     const index = parseInt(key, 10);
                     const userAnswer = answers[index];
-                    const correctOption = questions[index].options[questions[index].correctAnswer];
-                    return userAnswer === correctOption;
+                    // Safely access question and options
+                    const question = questions[index];
+                    if (question && question.options && question.options[question.correctAnswer]) {
+                      const correctOption = question.options[question.correctAnswer];
+                      return userAnswer === correctOption;
+                    }
+                    return false; // If question or options are missing, consider it incorrect
                   }).length} out of {totalQuestions} questions correctly.
                 </p>
                 <p className="text-sm text-gray-500">
-                  Passing score: {quiz.passingScore}%
+                  Passing score: {(quiz.passingScore || 70)}%
                 </p>
               </div>
             </div>
 
-            {score >= quiz.passingScore && (
+            {score >= (quiz.passingScore || 70) && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center justify-center space-x-2 text-green-700">
                   <Check size={20} />
@@ -230,14 +234,14 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
             {currentQuestion === totalQuestions - 1 ? (
               <Button
                 onClick={handleFinishQuiz}
-                disabled={!answers[currentQuestion]} // Ensure the last question is answered before finishing
+                disabled={!answers[currentQuestion] && currentQ.options && currentQ.options.length > 0}
               >
                 Finish Quiz
               </Button>
             ) : (
               <Button
                 onClick={handleNext}
-                disabled={!answers[currentQuestion]} // Ensure the current question is answered before proceeding
+                disabled={!answers[currentQuestion] && currentQ.options && currentQ.options.length > 0}
               >
                 Next
                 <ArrowRight size={16} className="ml-2" />
