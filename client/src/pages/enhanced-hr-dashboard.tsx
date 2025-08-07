@@ -507,25 +507,25 @@ export default function EnhancedHRDashboard() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>Department Overview</CardTitle>
+                      <CardTitle>Client Overview</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
                         {employees && employees.length > 0 ? (
                           Object.entries(
                             employees.reduce((acc: any, emp: any) => {
-                              const dept = emp.department || 'Unassigned';
-                              acc[dept] = (acc[dept] || 0) + 1;
+                              const client = emp.clientName || 'Unassigned';
+                              acc[client] = (acc[client] || 0) + 1;
                               return acc;
                             }, {})
-                          ).map(([dept, count]) => (
-                            <div key={dept} className="flex justify-between items-center">
-                              <span className="text-sm font-medium">{dept}</span>
+                          ).map(([client, count]) => (
+                            <div key={client} className="flex justify-between items-center">
+                              <span className="text-sm font-medium">{client}</span>
                               <Badge variant="secondary">{count}</Badge>
                             </div>
                           ))
                         ) : (
-                          <div className="text-center py-4 text-gray-500">No department data available</div>
+                          <div className="text-center py-4 text-gray-500">No client data available</div>
                         )}
                       </div>
                     </CardContent>

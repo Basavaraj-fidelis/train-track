@@ -294,35 +294,69 @@ export default function EmployeeDashboard() {
                         </CardContent>
                       </Card>
 
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Recent Achievements</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {certificates?.slice(0, 3).map((cert: any) => (
-                              <div key={cert.id} className="flex items-center p-3 bg-green-50 rounded-lg">
-                                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                                  <Tag className="text-green-600" size={16} />
+                      {/* Recent Achievements Section */}
+            {activeTab === "dashboard" && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="w-5 h-5" />
+                    Certificate Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {certificates && certificates.length > 0 ? (
+                      certificates.slice(0, 5).map((cert: any) => {
+                        // Calculate expiration (assuming 1 year validity for certificates)
+                        const issuedDate = new Date(cert.issuedAt);
+                        const expirationDate = new Date(issuedDate);
+                        expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+
+                        const today = new Date();
+                        const isExpired = today > expirationDate;
+                        const daysUntilExpiry = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+
+                        return (
+                          <div key={cert.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center">
+                              <Award className={`h-8 w-8 mr-3 ${isExpired ? 'text-red-500' : isExpiringSoon ? 'text-yellow-500' : 'text-green-500'}`} />
+                              <div>
+                                <div className="font-medium">{cert.course.title}</div>
+                                <div className="text-sm text-gray-500">
+                                  Completed {new Date(cert.issuedAt).toLocaleDateString()}
                                 </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-gray-900">
-                                    {cert.course.title} Tag
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Completed {new Date(cert.issuedAt).toLocaleDateString()}
-                                  </p>
+                                <div className={`text-sm font-medium ${isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : 'text-green-600'}`}>
+                                  {isExpired 
+                                    ? `Expired on ${expirationDate.toLocaleDateString()}`
+                                    : isExpiringSoon
+                                    ? `Expires in ${daysUntilExpiry} days (${expirationDate.toLocaleDateString()})`
+                                    : `Valid until ${expirationDate.toLocaleDateString()}`}
                                 </div>
                               </div>
-                            ))}
-                            {(!certificates || certificates.length === 0) && (
-                              <div className="text-center py-8 text-gray-500">
-                                No certificates earned yet. Complete courses to earn certificates.
-                              </div>
-                            )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge variant={isExpired ? "destructive" : isExpiringSoon ? "secondary" : "default"}>
+                                {isExpired ? "Expired" : isExpiringSoon ? "Expiring Soon" : "Valid"}
+                              </Badge>
+                              {(isExpired || isExpiringSoon) && (
+                                <Badge variant="outline" className="text-xs">
+                                  Renewal Required
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        No certificates earned yet. Complete courses to earn certificates!
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
                     </div>
                   </div>
                 )}
