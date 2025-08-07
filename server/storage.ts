@@ -1,4 +1,3 @@
-
 import { db } from "./db";
 import {
   users,
@@ -32,7 +31,7 @@ export class Storage {
         .where(sql`employee_id IS NOT NULL`)
         .orderBy(desc(users.createdAt))
         .limit(1);
-      
+
       const lastId = lastUser[0]?.employeeId?.match(/\d+$/)?.[0] || "0";
       userData.employeeId = `EMP${String(parseInt(lastId) + 1).padStart(3, "0")}`;
     }
@@ -221,8 +220,21 @@ export class Storage {
   }
 
   async getQuizByCourseId(courseId: string): Promise<Quiz | null> {
-    const [quiz] = await db.select().from(quizzes).where(eq(quizzes.courseId, courseId));
-    return quiz || null;
+    return await this.db
+      .select()
+      .from(quizzes)
+      .where(eq(quizzes.courseId, courseId))
+      .limit(1)
+      .then(rows => rows[0] || null);
+  }
+
+  async getCourse(courseId: string): Promise<Course | null> {
+    return await this.db
+      .select()
+      .from(courses)
+      .where(eq(courses.id, courseId))
+      .limit(1)
+      .then(rows => rows[0] || null);
   }
 
   async updateQuiz(id: string, quizData: Partial<InsertQuiz>): Promise<Quiz | null> {

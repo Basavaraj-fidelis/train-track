@@ -26,6 +26,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
 
   const { data: quiz } = useQuery({
     queryKey: ["/api/courses", enrollment.courseId, "quiz"],
+    queryFn: () => apiRequest("GET", `/api/courses/${enrollment.courseId}/quiz`).then(res => res.json()),
     enabled: !!enrollment.courseId,
   });
 
@@ -172,14 +173,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                 style={{ maxHeight: "500px" }}
                 onTimeUpdate={(e) => {
                   const video = e.target as HTMLVideoElement;
-                  if (video.duration) {
+                  if (video.duration && video.currentTime) {
                     const progress = Math.round((video.currentTime / video.duration) * 100);
                     setVideoProgress(progress);
 
-                    // Update progress in database when video reaches certain milestones
+                    // Update progress in database when video reaches 80%
                     if (progress >= 80 && !hasWatchedVideo) {
                       setHasWatchedVideo(true);
-                      updateProgressMutation.mutate(Math.min(progress, 90)); // Cap at 90% until quiz completion
+                      updateProgressMutation.mutate(80);
                     }
                   }
                 }}
@@ -281,46 +282,50 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       </Card>
 
       {/* Quiz Section */}
-      {quiz && (
-        <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Course Quiz
-                {enrollment.quizScore && (
-                  <Badge variant={enrollment.quizScore >= 70 ? "default" : "destructive"}>
-                    Score: {enrollment.quizScore}%
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                {videoProgress < 80 && !hasWatchedVideo
-                  ? "Watch at least 80% of the video before taking the quiz."
-                  : "Complete the quiz to test your understanding of the course material."}
-              </p>
-              {videoProgress > 0 && videoProgress < 80 && (
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Video Progress</span>
-                    <span>{videoProgress}%</span>
-                  </div>
-                  <Progress value={videoProgress} />
-                </div>
-              )}
-              <Button 
-                onClick={() => setShowQuiz(true)}
-                disabled={showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
-                className="w-full"
-              >
-                {enrollment.certificateIssued ? "Review Quiz" :
-                 enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
-                 enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
-              </Button>
-            </CardContent>
-          </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Course Quiz
+            {enrollment.quizScore && (
+              <Badge variant={enrollment.quizScore >= 70 ? "default" : "destructive"}>
+                Score: {enrollment.quizScore}%
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-600 mb-4">
+            {videoProgress < 80 && !hasWatchedVideo
+              ? "Watch at least 80% of the video before taking the quiz."
+              : "Complete the quiz to test your understanding of the course material."}
+          </p>
+          {videoProgress > 0 && videoProgress < 80 && (
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-1">
+                <span>Video Progress</span>
+                <span>{videoProgress}%</span>
+              </div>
+              <Progress value={videoProgress} />
+            </div>
+          )}
+          <Button 
+            onClick={() => setShowQuiz(true)}
+            disabled={!quiz || showQuiz || (videoProgress < 80 && !hasWatchedVideo)}
+            className="w-full"
+          >
+            {!quiz ? "Loading Quiz..." :
+             enrollment.certificateIssued ? "Review Quiz" :
+             enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
+             enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
+          </Button>
+          {!quiz && (
+            <p className="text-sm text-gray-500 mt-2 text-center">
+              {hasWatchedVideo ? "Quiz is being prepared..." : "Complete the video first"}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
         <CertificateAcknowledgmentModal
         open={showAcknowledgment}

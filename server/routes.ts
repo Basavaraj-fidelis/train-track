@@ -401,9 +401,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quiz routes
   app.get("/api/courses/:courseId/quiz", async (req, res) => {
     try {
-      const quiz = await storage.getQuizByCourseId(req.params.courseId);
+      const course = await storage.getCourse(req.params.courseId);
+      
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      
+      // Check if course has questions embedded or separate quiz
+      let quiz = await storage.getQuizByCourseId(req.params.courseId);
+      
+      // If no separate quiz exists but course has questions, create quiz from course questions
+      if (!quiz && course.questions && course.questions.length > 0) {
+        quiz = {
+          id: `course-quiz-${course.id}`,
+          courseId: course.id,
+          title: `${course.title} Quiz`,
+          questions: course.questions,
+          passingScore: 70
+        };
+      }
+      
       res.json(quiz);
     } catch (error) {
+      console.error("Quiz fetch error:", error);
       res.status(500).json({ message: "Failed to fetch quiz" });
     }
   });
