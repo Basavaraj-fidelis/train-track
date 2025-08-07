@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -34,18 +34,26 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
 
   const course = enrollment.course;
 
-  const handleQuizComplete = (score: number) => {
+  const handleQuizComplete = async (score: number, responseData?: any) => {
+    const passingScore = quiz?.passingScore || 70;
+    const isPassing = score >= passingScore;
+
     toast({
       title: "Quiz completed!",
-      description: `You scored ${score}%. ${score >= (quiz?.passingScore || 70) ? "Congratulations on passing!" : "Please try again to pass."}`,
-      variant: score >= (quiz?.passingScore || 70) ? "default" : "destructive",
+      description: `You scored ${score}%. ${isPassing ? "Congratulations on passing!" : "Please try again to pass."}`,
+      variant: isPassing ? "default" : "destructive"
     });
 
-    // Refresh enrollments
-    queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
+    // Invalidate queries to refresh data
+    await queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
 
     setShowQuiz(false);
+
+    // Show acknowledgment modal if quiz passed and needs acknowledgment
+    if (responseData?.needsAcknowledgment || (isPassing && !enrollment.certificateIssued)) {
+      setShowAcknowledgment(true);
+    }
   };
 
   const handleQuizSubmit = async (answers: number[], score: number) => {
@@ -79,29 +87,55 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     }
   };
 
-  const handleAcknowledge = async (signature: string) => {
+  const handleAcknowledge = async (digitalSignature: string) => {
     try {
-      const response = await fetch('/api/acknowledge-completion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const response = await fetch("/api/acknowledge-completion", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
         body: JSON.stringify({
           courseId: course.id,
-          digitalSignature: signature
-        })
+          digitalSignature,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to acknowledge completion');
+        throw new Error("Failed to acknowledge completion");
       }
 
-      // Reload to show updated certificate status
-      window.location.reload();
+      // Mark as acknowledged to prevent duplicate modals
+      localStorage.setItem(`acknowledged_${enrollment.courseId}_${enrollment.userId}`, "true");
+
+      // Refresh enrollments and certificates
+      queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-certificates"] });
+
+      toast({
+        title: "Certificate Generated!",
+        description: "Your certificate has been generated and sent to your email.",
+      });
     } catch (error) {
-      console.error('Acknowledgment error:', error);
-      throw error;
+      console.error("Acknowledgment error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate certificate. Please try again.",
+        variant: "destructive",
+      });
     }
   };
+
+  // Check for completed quiz that needs acknowledgment
+  useEffect(() => {
+    if (enrollment?.quizScore && enrollment.quizScore >= (quiz?.passingScore || 70) && !enrollment.certificateIssued) {
+      // Only show if not already acknowledged
+      const hasAcknowledged = localStorage.getItem(`acknowledged_${enrollment.courseId}_${enrollment.userId}`);
+      if (!hasAcknowledged) {
+        setShowAcknowledgment(true);
+      }
+    }
+  }, [enrollment, quiz]);
 
 
   if (showQuiz && quiz) {
@@ -245,10 +279,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                     </p>
                   )}
                 </div>
-                <Button
+                <Button 
                   onClick={() => setShowQuiz(true)}
+                  className="w-full"
+                  disabled={!enrollment.videoWatched}
                 >
-                  {enrollment.quizScore ? "Retake Quiz" : "Start Quiz"}
+                  {enrollment.certificateIssued ? "Review Quiz" :
+                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Quiz Completed - Get Certificate" :
+                   enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Quiz" : "Take Quiz"}
                 </Button>
               </div>
 

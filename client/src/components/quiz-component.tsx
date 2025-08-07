@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 interface QuizComponentProps {
   quiz: any;
   courseId: string;
-  onComplete: (score: number) => void;
+  onComplete: (score: number, response?: any) => void; // Modified to accept response
   onBack: () => void;
 }
 
@@ -33,7 +33,8 @@ export default function QuizComponent({ quiz, courseId, onComplete, onBack }: Qu
       return response.json();
     },
     onSuccess: (data) => {
-      onComplete(score);
+      // The `onComplete` prop is now called with `score` and `data` from the successful submission.
+      onComplete(score, data);
     },
     onError: () => {
       toast({

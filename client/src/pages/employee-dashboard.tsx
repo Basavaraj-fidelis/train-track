@@ -259,10 +259,12 @@ export default function EmployeeDashboard() {
                                   <h4 className="font-medium text-gray-900">{enrollment.course.title}</h4>
                                   <Badge variant={
                                     enrollment.certificateIssued ? "default" : 
-                                    enrollment.quizScore ? "destructive" : "secondary"
+                                    enrollment.quizScore && enrollment.quizScore >= 70 ? "default" :
+                                    enrollment.quizScore && enrollment.quizScore < 70 ? "destructive" : "secondary"
                                   }>
                                     {enrollment.certificateIssued ? "Completed" : 
-                                     enrollment.quizScore ? "Needs Retake" : "In Progress"}
+                                     enrollment.quizScore && enrollment.quizScore >= 70 ? "Awaiting Certificate" :
+                                     enrollment.quizScore && enrollment.quizScore < 70 ? "Needs Retake" : "In Progress"}
                                   </Badge>
                                 </div>
                                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">{enrollment.course.description}</p>
@@ -277,7 +279,8 @@ export default function EmployeeDashboard() {
                                   onClick={() => setSelectedCourse(enrollment)}
                                 >
                                   {enrollment.certificateIssued ? "Review Course" :
-                                   enrollment.quizScore ? "Retake Course" :
+                                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Get Certificate" :
+                                   enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Course" :
                                    enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                                 </Button>
                               </div>
@@ -337,10 +340,12 @@ export default function EmployeeDashboard() {
                               <div className="absolute top-2 left-2">
                                 <Badge variant={
                                   enrollment.certificateIssued ? "default" : 
-                                  enrollment.quizScore ? "destructive" : "secondary"
+                                  enrollment.quizScore && enrollment.quizScore >= 70 ? "default" :
+                                  enrollment.quizScore && enrollment.quizScore < 70 ? "destructive" : "secondary"
                                 }>
                                   {enrollment.certificateIssued ? "Completed" : 
-                                   enrollment.quizScore ? "Needs Retake" : "In Progress"}
+                                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Awaiting Certificate" :
+                                   enrollment.quizScore && enrollment.quizScore < 70 ? "Needs Retake" : "In Progress"}
                                 </Badge>
                               </div>
                             </div>
@@ -363,7 +368,8 @@ export default function EmployeeDashboard() {
                               onClick={() => setSelectedCourse(enrollment)}
                             >
                               {enrollment.certificateIssued ? "Review Course" :
-                               enrollment.quizScore ? "Retake Course" :
+                               enrollment.quizScore && enrollment.quizScore >= 70 ? "Get Certificate" :
+                               enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Course" :
                                enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                             </Button>
                           </CardContent>
