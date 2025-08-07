@@ -41,16 +41,18 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
 
   const updateProgressMutation = useMutation({
     mutationFn: async (progress: number) => {
-      const response = await apiRequest("PUT", `/api/enrollments/${enrollment.id}`, {
+      if (!enrollment?.id) throw new Error("No enrollment found");
+
+      const response = await apiRequest("PUT", `/api/my-enrollments/${enrollment.id}`, {
         progress,
       });
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/my-enrollments"] });
       // Update local state to reflect the change
-      if (data.progress) {
-        setVideoProgress(data.progress);
+      if (enrollment.progress) {
+        setVideoProgress(enrollment.progress);
       }
     },
   });

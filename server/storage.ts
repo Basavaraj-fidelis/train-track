@@ -263,11 +263,13 @@ export class Storage {
   }
 
   async getEnrollment(userId: string, courseId: string): Promise<Enrollment | null> {
-    const [enrollment] = await db
+    const enrollments = await this.db
       .select()
-      .from(enrollments)
-      .where(and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId)));
-    return enrollment || null;
+      .from(enrollmentsTable)
+      .where(and(eq(enrollmentsTable.userId, userId), eq(enrollmentsTable.courseId, courseId)))
+      .limit(1);
+
+    return enrollments[0] || null;
   }
 
   async getEnrollmentByToken(token: string): Promise<Enrollment | null> {

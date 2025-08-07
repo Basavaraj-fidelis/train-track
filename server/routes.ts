@@ -492,6 +492,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Employee can update their own enrollment progress
+  app.put("/api/my-enrollments/:enrollmentId", requireAuth, async (req, res) => {
+    try {
+      const { progress } = req.body;
+      const enrollmentId = req.params.enrollmentId;
+
+      // First verify this enrollment belongs to the current user
+      const enrollment = await storage.getEnrollmentById(req.session.userId!, enrollmentId);
+      if (!enrollment) {
+        return res.status(404).json({ message: "Enrollment not found or access denied" });
+      }
+
+      const updatedEnrollment = await storage.updateEnrollment(enrollmentId, {
+        progress: Math.min(Math.max(progress || 0, 0), 100), // Ensure progress is between 0-100
+        lastAccessedAt: new Date()
+      });
+
+      if (updatedEnrollment) {
+        res.json(updatedEnrollment);
+      } else {
+        res.status(404).json({ message: "Failed to update enrollment" });
+      }
+    } catch (error) {
+      console.error('Error updating enrollment progress:', error);
+      res.status(500).json({ message: "Failed to update enrollment progress" });
+    }
+  });
+
   app.post("/api/enroll", requireAdmin, async (req, res) => {
     try {
       const { userId, courseId } = req.body;
