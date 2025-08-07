@@ -734,6 +734,18 @@ export class DatabaseStorage implements IStorage {
     return 0; // Return count of emails sent
   }
 
+  async incrementReminderCount(enrollmentId: string): Promise<void> {
+    try {
+      await this.db
+        .update(enrollments)
+        .set({ remindersSent: sql`COALESCE(${enrollments.remindersSent}, 0) + 1` })
+        .where(eq(enrollments.id, enrollmentId));
+    } catch (error) {
+      console.error('Failed to increment reminder count:', error);
+      // Don't throw error as this is not critical
+    }
+  }
+
   async cleanupExpiredAssignments(): Promise<number> {
     try {
       // Mark assignments as expired if past their deadline

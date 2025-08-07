@@ -993,10 +993,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/send-reminders/:courseId", requireAdmin, async (req, res) => {
     try {
       const assignments = await storage.getCourseAssignments(req.params.courseId);
+      // Only send to users who haven't completed the course AND are not expired
       const pendingAssignments = assignments.filter(a => 
-        ['pending', 'accessed'].includes(a.status) && 
-        new Date() < new Date(a.deadline) &&
-        !a.completedAt // Exclude users who have completed the course
+        a.status !== 'completed' && 
+        a.status !== 'expired' &&
+        new Date() < new Date(a.deadline)
       );
 
       const course = await storage.getCourse(req.params.courseId);
@@ -1004,11 +1005,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const assignment of pendingAssignments) {
         try {
-          const loginLink = `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`;
+          const loginLink = assignment.assignmentToken 
+            ? `${req.protocol}://${req.get('host')}/course-access/${assignment.assignmentToken}`
+            : `${req.protocol}://${req.get('host')}/employee-login`;
+          
+          const recipientEmail = assignment.assignedEmail || assignment.user?.email;
+          if (!recipientEmail) continue;
           
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
-            to: assignment.assignedEmail,
+            to: recipientEmail,
             subject: `Reminder: Training Course Deadline Approaching - ${course?.title}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1030,13 +1036,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             `,
           });
+          
+          // Increment reminder count for this enrollment
+          await storage.incrementReminderCount(assignment.id);
           sentCount++;
         } catch (emailError) {
           console.error('Failed to send reminder email:', emailError);
         }
       }
 
-      await storage.sendCourseReminders(req.params.courseId);
       res.json({ message: `Sent ${sentCount} reminder emails` });
     } catch (error) {
       console.error("Error sending reminders:", error);

@@ -536,24 +536,62 @@ export default function EmployeeDashboard() {
                                 </span>
                               </div>
                               <h3 className="text-xl font-semibold text-gray-900">{authData?.user?.name}</h3>
-                              <p className="text-gray-600">{authData?.user?.position || "Employee"}</p>
+                              <p className="text-gray-600">{authData?.user?.designation || "Employee"}</p>
+                              <Badge variant="outline" className="mt-2">
+                                {authData?.user?.isActive ? "Active" : "Inactive"}
+                              </Badge>
                             </div>
+                          </CardContent>
+                        </Card>
 
-                            <div className="space-y-4 mt-6">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <p className="text-gray-900">{authData?.user?.email}</p>
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                                <p className="text-gray-900">{authData?.user?.department || "N/A"}</p>
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
-                                <p className="text-gray-900">
-                                  {authData?.user?.joinDate ? new Date(authData.user.joinDate).toLocaleDateString() : "N/A"}
-                                </p>
-                              </div>
+                        {/* Basic Information Card */}
+                        <Card className="mt-6">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <User className="w-5 h-5" />
+                              Basic Information
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                              <p className="text-gray-900 font-mono">{authData?.user?.employeeId || "N/A"}</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                              <p className="text-gray-900">{authData?.user?.email}</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                              <p className="text-gray-900">{authData?.user?.phoneNumber || "N/A"}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Work Information Card */}
+                        <Card className="mt-6">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <GraduationCap className="w-5 h-5" />
+                              Work Information
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                              <p className="text-gray-900">{authData?.user?.department || "N/A"}</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                              <p className="text-gray-900">{authData?.user?.designation || "N/A"}</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                              <p className="text-gray-900">{authData?.user?.clientName || "N/A"}</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                              <Badge variant="secondary">{authData?.user?.role || "employee"}</Badge>
                             </div>
                           </CardContent>
                         </Card>
