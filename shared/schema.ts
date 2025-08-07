@@ -33,6 +33,8 @@ export const courses = pgTable("courses", {
   isComplianceCourse: boolean("is_compliance_course").default(false),
   renewalPeriodMonths: integer("renewal_period_months").default(3), // 3 or 4 months
   isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
+  // Course type for certificate expiry management
+  courseType: text("course_type", { enum: ["recurring", "one-time"] }).default("one-time"),
   // New fields for deadline management
   defaultDeadlineDays: integer("default_deadline_days").default(30), // Default days to complete
   reminderDays: integer("reminder_days").default(7), // Days before deadline to send reminder

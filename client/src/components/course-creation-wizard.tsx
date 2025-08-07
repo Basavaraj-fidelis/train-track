@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, Upload, Plus, Trash2, Check } from "lucide-r
 const courseBasicSchema = z.object({
   title: z.string().min(1, "Course title is required"),
   description: z.string().min(1, "Course description is required"),
+  courseType: z.enum(["recurring", "one-time"]).default("one-time"),
 });
 
 const quizQuestionSchema = z.object({
@@ -56,7 +57,7 @@ export default function CourseCreationWizard({ onClose, onComplete }: CourseCrea
 
   const basicForm = useForm({
     resolver: zodResolver(courseBasicSchema),
-    defaultValues: { title: "", description: "" },
+    defaultValues: { title: "", description: "", courseType: "one-time" },
   });
 
   const quizForm = useForm({
@@ -160,6 +161,7 @@ export default function CourseCreationWizard({ onClose, onComplete }: CourseCrea
     const formData = new FormData();
     formData.append("title", courseData.title);
     formData.append("description", courseData.description);
+    formData.append("courseType", courseData.courseType || "one-time");
     if (videoFile) {
       formData.append("video", videoFile);
     }
@@ -240,6 +242,38 @@ export default function CourseCreationWizard({ onClose, onComplete }: CourseCrea
                     {basicForm.formState.errors.description.message}
                   </p>
                 )}
+              </div>
+              <div>
+                <Label htmlFor="courseType">Course Type</Label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="one-time"
+                      value="one-time"
+                      {...basicForm.register("courseType")}
+                      className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                    />
+                    <Label htmlFor="one-time" className="text-sm font-normal">
+                      One-time Course (Certificate never expires)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="recurring"
+                      value="recurring"
+                      {...basicForm.register("courseType")}
+                      className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                    />
+                    <Label htmlFor="recurring" className="text-sm font-normal">
+                      Recurring Course (Certificate expires and requires renewal)
+                    </Label>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Recurring courses will have certificates that expire after the renewal period, requiring employees to retake the course.
+                </p>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={onClose}>

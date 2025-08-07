@@ -18,6 +18,7 @@ interface QuizQuestion {
 interface CourseFormData {
   title: string;
   description: string;
+  courseType: "recurring" | "one-time";
   videoFile: File | null;
   quizQuestions: QuizQuestion[];
 }
@@ -65,6 +66,7 @@ export default function CourseCreation() {
   const [courseData, setCourseData] = useState<CourseFormData>({
     title: "",
     description: "",
+    courseType: "one-time",
     videoFile: null,
     quizQuestions: [],
   });
@@ -76,6 +78,7 @@ export default function CourseCreation() {
       setCourseData({
         title: existingCourse.title || "",
         description: existingCourse.description || "",
+        courseType: existingCourse.courseType || "one-time", // Set courseType from existing data
         videoFile: null, // Keep null for existing video
         quizQuestions: existingCourse.questions || [],
       });
@@ -181,6 +184,7 @@ export default function CourseCreation() {
       const formData = new FormData();
       formData.append("title", courseData.title.trim());
       formData.append("description", courseData.description.trim());
+      formData.append("courseType", courseData.courseType);
       formData.append("questions", JSON.stringify(courseData.quizQuestions));
 
       if (courseData.videoFile) {
@@ -274,14 +278,55 @@ export default function CourseCreation() {
                   id="description"
                   value={courseData.description}
                   onChange={(e) =>
-                    setCourseData((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
+                    setCourseData((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  placeholder="Enter detailed course description"
-                  className="mt-1 min-h-[120px]"
+                  placeholder="Enter course description"
+                  className="mt-1"
+                  rows={4}
                 />
+              </div>
+
+              <div>
+                <label htmlFor="courseType" className="block text-sm font-medium text-gray-700">
+                  Course Type
+                </label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="one-time"
+                      name="courseType"
+                      value="one-time"
+                      checked={courseData.courseType === "one-time"}
+                      onChange={(e) =>
+                        setCourseData((prev) => ({ ...prev, courseType: e.target.value as "one-time" | "recurring" }))
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor="one-time" className="ml-2 text-sm text-gray-700">
+                      One-time Course (Certificate never expires)
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="recurring"
+                      name="courseType"
+                      value="recurring"
+                      checked={courseData.courseType === "recurring"}
+                      onChange={(e) =>
+                        setCourseData((prev) => ({ ...prev, courseType: e.target.value as "one-time" | "recurring" }))
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label htmlFor="recurring" className="ml-2 text-sm text-gray-700">
+                      Recurring Course (Certificate expires and requires renewal)
+                    </label>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Recurring courses will have certificates that expire after the renewal period, requiring employees to retake the course.
+                </p>
               </div>
             </CardContent>
           </Card>

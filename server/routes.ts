@@ -234,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Course creation file:', req.file);
       console.log('Session during course creation:', req.session);
       
-      const { title, description, questions } = req.body;
+      const { title, description, questions, courseType } = req.body;
       
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
@@ -260,7 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration: 0,
         createdBy: req.session.userId,
         videoPath: req.file.filename,
-        questions: parsedQuestions
+        questions: parsedQuestions,
+        courseType: courseType || 'one-time'
       };
       
       const course = await storage.createCourse(courseData);
@@ -276,11 +277,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/courses/:id", requireAdmin, upload.single('video'), async (req, res) => {
     try {
-      const { title, description, questions } = req.body;
+      const { title, description, questions, courseType } = req.body;
       const updateData: any = {
         title,
         description,
-        questions: questions ? JSON.parse(questions) : []
+        questions: questions ? JSON.parse(questions) : [],
+        courseType: courseType || 'one-time'
       };
 
       if (req.file) {
@@ -613,6 +615,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(req.session.userId);
       const course = await storage.getCourse(courseId);
       
+      // Calculate expiry date based on course type
+      let expiresAt = null;
+      if (course?.courseType === 'recurring') {
+        const completionDate = new Date();
+        const renewalMonths = course.renewalPeriodMonths || 3;
+        expiresAt = new Date(completionDate.getTime() + (renewalMonths * 30 * 24 * 60 * 60 * 1000));
+      }
+
       const certificateData = {
         score: enrollment.quizScore,
         completedAt: new Date(),
@@ -621,7 +631,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         participantName: user?.name || "",
         courseName: course?.title || "",
         completionDate: new Date().toLocaleDateString(),
-        certificateId: existingCertificate?.id || `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+        certificateId: existingCertificate?.id || `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        courseType: course?.courseType || 'one-time',
+        expiresAt: expiresAt ? expiresAt.toLocaleDateString() : null
       };
 
       if (existingCertificate) {
@@ -646,7 +658,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update enrollment to mark certificate as issued
       await storage.updateEnrollment(enrollment.id, {
         certificateIssued: true,
-        completedAt: new Date()
+        completedAt: new Date(),
+        expiresAt: expiresAt,
+        isExpired: false
       });
 
       // Send certificate email to both user and HR
