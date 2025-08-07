@@ -18,27 +18,23 @@ export const db = drizzle({ client: pool, schema });
 // Auto-migration for missing columns
 async function ensureSchemaUpdates() {
   try {
-    // Add courseType column if it doesn't exist
-    await db.execute(sql`
-      ALTER TABLE courses 
-      ADD COLUMN IF NOT EXISTS course_type text DEFAULT 'one-time',
-      ADD COLUMN IF NOT EXISTS renewal_period_months integer DEFAULT 3,
-      ADD COLUMN IF NOT EXISTS is_compliance_course boolean DEFAULT false,
-      ADD COLUMN IF NOT EXISTS is_auto_enroll_new_employees boolean DEFAULT false
-    `);
+    // Add courseType column if it doesn't exist (separate statements for PostgreSQL compatibility)
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS course_type text DEFAULT 'one-time'`);
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS renewal_period_months integer DEFAULT 3`);
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_compliance_course boolean DEFAULT false`);
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_auto_enroll_new_employees boolean DEFAULT false`);
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS default_deadline_days integer DEFAULT 30`);
+    await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS reminder_days integer DEFAULT 7`);
 
-    // Add missing enrollment columns
-    await db.execute(sql`
-      ALTER TABLE enrollments 
-      ADD COLUMN IF NOT EXISTS expires_at timestamp,
-      ADD COLUMN IF NOT EXISTS is_expired boolean DEFAULT false,
-      ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS assigned_email text,
-      ADD COLUMN IF NOT EXISTS assignment_token text,
-      ADD COLUMN IF NOT EXISTS deadline timestamp,
-      ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS reminders_sent integer DEFAULT 0
-    `);
+    // Add missing enrollment columns (separate statements)
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS expires_at timestamp`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_expired boolean DEFAULT false`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assigned_email text`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent integer DEFAULT 0`);
 
     console.log('Database schema updates completed successfully');
   } catch (error) {

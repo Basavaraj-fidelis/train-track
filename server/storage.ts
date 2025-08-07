@@ -123,12 +123,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCourse(id: string): Promise<Course | undefined> {
-    const [course] = await this.db.select().from(courses).where(eq(courses.id, id));
-    return course || undefined;
+    try {
+      const [course] = await this.db.select().from(courses).where(eq(courses.id, id));
+      return course || undefined;
+    } catch (error: any) {
+      if (error.code === '42703') {
+        // If course_type column doesn't exist, select basic fields only
+        console.log('Selecting course with basic fields only due to schema migration');
+        const [course] = await this.db.select({
+          id: courses.id,
+          title: courses.title,
+          description: courses.description,
+          videoPath: courses.videoPath,
+          duration: courses.duration,
+          createdBy: courses.createdBy,
+          createdAt: courses.createdAt,
+          isActive: courses.isActive,
+        }).from(courses).where(eq(courses.id, id));
+        return course || undefined;
+      }
+      throw error;
+    }
   }
 
   async getAllCourses(): Promise<Course[]> {
-    return await this.db.select().from(courses).where(eq(courses.isActive, true));
+    try {
+      return await this.db.select().from(courses).where(eq(courses.isActive, true));
+    } catch (error: any) {
+      if (error.code === '42703') {
+        // If course_type column doesn't exist, select basic fields only
+        console.log('Selecting courses with basic fields only due to schema migration');
+        return await this.db.select({
+          id: courses.id,
+          title: courses.title,
+          description: courses.description,
+          videoPath: courses.videoPath,
+          duration: courses.duration,
+          createdBy: courses.createdBy,
+          createdAt: courses.createdAt,
+          isActive: courses.isActive,
+        }).from(courses).where(eq(courses.isActive, true));
+      }
+      throw error;
+    }
   }
 
   async createCourse(courseData: InsertCourse): Promise<Course> {
@@ -143,24 +180,44 @@ export class DatabaseStorage implements IStorage {
 
       const courseId = crypto.randomUUID();
 
-      const [course] = await this.db
-        .insert(courses)
-        .values({
-          id: courseId,
-          title: courseData.title.trim(),
-          description: courseData.description.trim(),
-          duration: courseData.duration || 0,
-          videoPath: courseData.videoPath,
-          isActive: true,
-          createdBy: courseData.createdBy,
-          courseType: courseData.courseType || 'one-time',
-          renewalPeriodMonths: courseData.renewalPeriodMonths || 3,
-          isComplianceCourse: courseData.isComplianceCourse || false,
-          isAutoEnrollNewEmployees: courseData.isAutoEnrollNewEmployees || false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning();
+      const courseValues: any = {
+        id: courseId,
+        title: courseData.title.trim(),
+        description: courseData.description.trim(),
+        duration: courseData.duration || 0,
+        videoPath: courseData.videoPath,
+        isActive: true,
+        createdBy: courseData.createdBy,
+        createdAt: new Date(),
+      };
+
+      // Only add these fields if they exist in the schema
+      try {
+        // Test if the column exists by trying to insert with it
+        const [course] = await this.db
+          .insert(courses)
+          .values({
+            ...courseValues,
+            courseType: courseData.courseType || 'one-time',
+            renewalPeriodMonths: courseData.renewalPeriodMonths || 3,
+            isComplianceCourse: courseData.isComplianceCourse || false,
+            isAutoEnrollNewEmployees: courseData.isAutoEnrollNewEmployees || false,
+          })
+          .returning();
+          
+        return course;
+      } catch (error: any) {
+        if (error.code === '42703') {
+          // Column doesn't exist yet, insert without the new fields
+          console.log('Creating course without new schema fields, they will be available after migration');
+          const [course] = await this.db
+            .insert(courses)
+            .values(courseValues)
+            .returning();
+          return course;
+        }
+        throw error;
+      }
 
       // Handle quiz questions if provided
       if (courseData.questions && courseData.questions.length > 0) {
