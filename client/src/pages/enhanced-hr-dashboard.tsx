@@ -693,17 +693,7 @@ export default function EnhancedHRDashboard() {
                             <Badge variant={course.isActive ? "default" : "secondary"}>
                               {course.isActive ? "Active" : "Inactive"}
                             </Badge>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedCourse(course);
-                                setBulkAssignCourseOpen(true);
-                              }}
-                            >
-                              <UserPlus className="w-4 h-4 mr-1" />
-                              Assign to Employees
-                            </Button>
+                            
                             <Button
                               size="sm"
                               variant="outline"

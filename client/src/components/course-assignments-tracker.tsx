@@ -67,7 +67,7 @@ export default function CourseAssignmentsTracker({
   };
 
   const pendingCount = assignments?.filter((a: any) => ["pending", "accessed"].includes(a.status))?.length || 0;
-  const completedCount = assignments?.filter((a: any) => a.status === "completed")?.length || 0;
+  const completedCount = assignments?.filter((a: any) => a.completedAt)?.length || 0;
   const expiredCount = assignments?.filter((a: any) => a.status === "expired")?.length || 0;
 
   return (
@@ -153,13 +153,14 @@ export default function CourseAssignmentsTracker({
                       </TableCell>
                       <TableCell>
                         <Badge variant={
-                          assignment.status === "completed" ? "default" :
+                          assignment.completedAt ? "default" :
                           assignment.status === "expired" ? "destructive" :
-                          assignment.status === "accessed" ? "outline" : "secondary"
+                          assignment.userId ? "outline" : "secondary"
                         }>
-                          {assignment.status === "pending" && !assignment.userId ? "Email Sent" :
-                           assignment.status === "accessed" ? "In Progress" :
-                           assignment.status || "pending"}
+                          {assignment.completedAt ? "Completed" :
+                           assignment.status === "expired" ? "Expired" :
+                           assignment.userId ? "In Progress" :
+                           "Email Sent"}
                         </Badge>
                       </TableCell>
                       <TableCell>
