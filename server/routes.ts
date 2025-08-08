@@ -285,7 +285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let parsedQuestions = [];
       if (questions) {
         try {
-          parsedQuestions = JSON.parse(questions);
+          // Handle both string and object formats
+          parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
         } catch (parseError) {
           console.error('Error parsing questions:', parseError);
           return res.status(400).json({ message: "Invalid questions format" });
@@ -342,6 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (questions) {
         let parsedQuestions = [];
         try {
+          // Handle both string and object formats
           parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
         } catch (parseError) {
           console.error('Error parsing questions:', parseError);
