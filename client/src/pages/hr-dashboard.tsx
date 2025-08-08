@@ -575,7 +575,7 @@ export default function HRDashboard() {
                           )}
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{course.description}</p>
+                        <p className="text-gray-600 text-sm mb-4 truncate">{course.description}</p>
                         <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                           <span>
                             <Clock size={12} className="inline mr-1" />

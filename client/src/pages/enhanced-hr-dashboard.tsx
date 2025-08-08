@@ -738,7 +738,7 @@ export default function EnhancedHRDashboard() {
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">{course.title}</div>
-                              <div className="text-sm text-gray-500">{course.description}</div>
+                              <p className="text-gray-600 text-sm mb-4 truncate">{course.description}</p>
                               <div className="text-sm text-gray-500">
                                 {course.duration ? `${course.duration} minutes` : "Duration not set"}
                               </div>
