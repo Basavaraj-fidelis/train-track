@@ -69,6 +69,7 @@ import {
 import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog"; // Import for email assignment dialog
 import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
 import PerformanceMonitor from "@/components/performance-monitor"; // Import PerformanceMonitor
+import React from "react"; // Import React for useState and other hooks
 
 export default function EnhancedHRDashboard() {
   const [, setLocation] = useLocation();
@@ -96,6 +97,11 @@ export default function EnhancedHRDashboard() {
   const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
   const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
   const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
+
+  // State for course deletion confirmation
+  const [deletionImpact, setDeletionImpact] = React.useState<any>(null);
+  const [showDeletionDialog, setShowDeletionDialog] = React.useState(false);
+  const [courseToDelete, setCourseToDelete] = React.useState<string>("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -354,25 +360,64 @@ export default function EnhancedHRDashboard() {
   };
 
   const handleDeleteCourse = async (courseId: string) => {
-    if (confirm("Are you sure you want to delete this course?")) {
-      try {
-        await apiRequest("DELETE", `/api/courses/${courseId}`);
-        // Force refetch for immediate UI updates
-        queryClient.refetchQueries({ queryKey: ["/api/courses"] });
-        queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
-        toast({
-          title: "Course deleted",
-          description: "Course has been successfully deleted.",
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete course.",
-          variant: "destructive",
-        });
+    try {
+      // First, get the deletion impact
+      const response = await fetch(`/api/courses/${courseId}/deletion-impact`, {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const impact = await response.json();
+        setDeletionImpact(impact);
+        setCourseToDelete(courseId);
+        setShowDeletionDialog(true);
+      } else {
+        throw new Error("Failed to get deletion impact");
       }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to get deletion information.",
+        variant: "destructive",
+      });
     }
   };
+
+  const confirmDeleteCourse = async () => {
+    try {
+      const response = await fetch(`/api/courses/${courseToDelete}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        queryClient.refetchQueries({ queryKey: ["/api/courses"] });
+        queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
+        queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+        queryClient.refetchQueries({ queryKey: ["/api/enrollments"] });
+
+        setShowDeletionDialog(false);
+        setDeletionImpact(null);
+        setCourseToDelete("");
+
+        toast({
+          title: "Success",
+          description: result.message || "Course deleted successfully.",
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to delete course");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete course.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const handleImportEmployees = () => {
     const input = document.createElement("input");
@@ -1018,17 +1063,15 @@ export default function EnhancedHRDashboard() {
             {activeSection === "employees" && (
               <div>
                 <div className="flex justify-between items-center mb-8">
-                  <div>
-                    <div className="flex space-x-3">
-                      <Button 
-                        variant="outline" 
-                        onClick={exportEmployees}
-                        className="bg-white/70 backdrop-blur-sm hover:bg-white shadow-md"
-                      >
-                        <Download size={16} className="mr-2" />
-                        Export Directory
-                      </Button>
-                    </div>
+                  <div className="flex space-x-3">
+                    <Button 
+                      variant="outline" 
+                      onClick={exportEmployees}
+                      className="bg-white/70 backdrop-blur-sm hover:bg-white shadow-md"
+                    >
+                      <Download size={16} className="mr-2" />
+                      Export Directory
+                    </Button>
                   </div>
                 </div>
 
@@ -1825,6 +1868,91 @@ export default function EnhancedHRDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
+
+      {/* Course Deletion Confirmation Dialog */}
+      <Dialog open={showDeletionDialog} onOpenChange={setShowDeletionDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Confirm Course Deletion</DialogTitle>
+            <DialogDescription>
+              This action will permanently delete the course and all related data. Please review the impact below.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deletionImpact && (
+            <div className="space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                <h4 className="font-semibold text-yellow-800">Course: {deletionImpact.course.title}</h4>
+                <p className="text-yellow-700">{deletionImpact.course.description}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                  <h5 className="font-semibold text-red-800">Will be deleted:</h5>
+                  <ul className="text-red-700 text-sm mt-1">
+                    <li>• {deletionImpact.impact.totalEnrollments} enrollment(s)</li>
+                    <li>• {deletionImpact.impact.certificatesWillBeDeleted} certificate(s)</li>
+                    <li>• {deletionImpact.impact.quizzesWillBeDeleted} quiz(es)</li>
+                    <li>• {deletionImpact.impact.usersWillBeDeleted} user(s) (only enrolled in this course)</li>
+                  </ul>
+                </div>
+
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <h5 className="font-semibold text-green-800">Will be kept:</h5>
+                  <ul className="text-green-700 text-sm mt-1">
+                    <li>• {deletionImpact.impact.usersWillBeKept} user(s) (enrolled in other courses)</li>
+                  </ul>
+                </div>
+              </div>
+
+              {deletionImpact.usersToDelete.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                  <h5 className="font-semibold text-red-800">Users that will be deleted:</h5>
+                  <div className="mt-2 space-y-1">
+                    {deletionImpact.usersToDelete.map((user: any) => (
+                      <div key={user.id} className="text-sm text-red-700">
+                        {user.name} ({user.email}) - {user.employeeId}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {deletionImpact.usersToKeep.length > 0 && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <h5 className="font-semibold text-green-800">Users that will be kept:</h5>
+                  <div className="mt-2 space-y-1">
+                    {deletionImpact.usersToKeep.slice(0, 5).map((user: any) => (
+                      <div key={user.id} className="text-sm text-green-700">
+                        {user.name} ({user.email}) - {user.employeeId}
+                      </div>
+                    ))}
+                    {deletionImpact.usersToKeep.length > 5 && (
+                      <div className="text-sm text-green-600">
+                        ... and {deletionImpact.usersToKeep.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeletionDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteCourse}
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      </div>
+    );
+  };

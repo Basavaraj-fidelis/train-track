@@ -186,12 +186,62 @@ export class Storage {
   }
 
   async deleteCourse(id: string): Promise<boolean> {
-    // Soft delete by marking as inactive
-    const result = await db
-      .update(courses)
-      .set({ isActive: false })
-      .where(eq(courses.id, id));
-    return result.rowCount > 0;
+    try {
+      // Start a transaction to ensure data consistency
+      return await db.transaction(async (tx) => {
+        // Get all users enrolled in this course
+        const enrolledUsers = await tx
+          .select({
+            userId: enrollments.userId,
+          })
+          .from(enrollments)
+          .where(eq(enrollments.courseId, id));
+
+        // For each enrolled user, check if they have other enrollments
+        const usersToDelete: string[] = [];
+        for (const enrollment of enrolledUsers) {
+          if (enrollment.userId) {
+            // Count other enrollments for this user (excluding the course being deleted)
+            const otherEnrollmentsCount = await tx
+              .select({ count: count() })
+              .from(enrollments)
+              .where(
+                and(
+                  eq(enrollments.userId, enrollment.userId),
+                  sql`${enrollments.courseId} != ${id}`
+                )
+              );
+
+            // If user has no other enrollments, mark for deletion
+            if ((otherEnrollmentsCount[0]?.count || 0) === 0) {
+              usersToDelete.push(enrollment.userId);
+            }
+          }
+        }
+
+        // Delete certificates related to this course
+        await tx.delete(certificates).where(eq(certificates.courseId, id));
+
+        // Delete enrollments related to this course
+        await tx.delete(enrollments).where(eq(enrollments.courseId, id));
+
+        // Delete quizzes related to this course
+        await tx.delete(quizzes).where(eq(quizzes.courseId, id));
+
+        // Delete users who were only enrolled in this course
+        if (usersToDelete.length > 0) {
+          await tx.delete(users).where(inArray(users.id, usersToDelete));
+        }
+
+        // Finally, delete the course itself (hard delete)
+        const result = await tx.delete(courses).where(eq(courses.id, id));
+
+        return result.rowCount > 0;
+      });
+    } catch (error) {
+      console.error('Error during course deletion:', error);
+      throw new Error('Failed to delete course and related data');
+    }
   }
 
   async autoEnrollInComplianceCourses(employeeIdentifier: string): Promise<void> {
@@ -803,6 +853,64 @@ export class Storage {
       .select({ total: sql<number>`SUM(${enrollments.remindersSent})` })
       .from(enrollments);
     return result?.total || 0;
+  }
+
+  async getCourseDeletionImpact(courseId: string): Promise<{
+    course: Course | null;
+    totalEnrollments: number;
+    usersToDelete: User[];
+    usersToKeep: User[];
+    certificatesCount: number;
+    quizzesCount: number;
+  }> {
+    const course = await this.getCourse(courseId);
+    if (!course) {
+      return {
+        course: null,
+        totalEnrollments: 0,
+        usersToDelete: [],
+        usersToKeep: [],
+        certificatesCount: 0,
+        quizzesCount: 0,
+      };
+    }
+
+    // Get all enrollments for this course
+    const courseEnrollments = await this.getCourseEnrollments(courseId);
+    const enrolledUserIds = [...new Set(courseEnrollments.map(e => e.user?.id).filter(Boolean))];
+
+    const usersToDelete: User[] = [];
+    const usersToKeep: User[] = [];
+
+    // Check each user's other enrollments
+    for (const userId of enrolledUserIds) {
+      if (userId) {
+        const user = await this.getUser(userId);
+        const userEnrollments = await this.getUserEnrollments(userId);
+        const otherCoursesCount = userEnrollments.filter(e => e.courseId !== courseId).length;
+
+        if (otherCoursesCount === 0 && user) {
+          usersToDelete.push(user);
+        } else if (user) {
+          usersToKeep.push(user);
+        }
+      }
+    }
+
+    // Count certificates and quizzes
+    const [certificatesResult, quizzesResult] = await Promise.all([
+      db.select({ count: count() }).from(certificates).where(eq(certificates.courseId, courseId)),
+      db.select({ count: count() }).from(quizzes).where(eq(quizzes.courseId, courseId)),
+    ]);
+
+    return {
+      course,
+      totalEnrollments: courseEnrollments.length,
+      usersToDelete,
+      usersToKeep,
+      certificatesCount: certificatesResult[0]?.count || 0,
+      quizzesCount: quizzesResult[0]?.count || 0,
+    };
   }
 
   async cleanupExpiredAssignments(): Promise<number> {

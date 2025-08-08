@@ -390,13 +390,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Preview course deletion impact
+  app.get("/api/courses/:id/deletion-impact", requireAdmin, async (req, res) => {
+    try {
+      const impact = await storage.getCourseDeletionImpact(req.params.id);
+      
+      if (!impact.course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      res.json({
+        course: impact.course,
+        impact: {
+          totalEnrollments: impact.totalEnrollments,
+          usersWillBeDeleted: impact.usersToDelete.length,
+          usersWillBeKept: impact.usersToKeep.length,
+          certificatesWillBeDeleted: impact.certificatesCount,
+          quizzesWillBeDeleted: impact.quizzesCount,
+        },
+        usersToDelete: impact.usersToDelete.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          employeeId: u.employeeId,
+        })),
+        usersToKeep: impact.usersToKeep.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          employeeId: u.employeeId,
+        })),
+      });
+    } catch (error: any) {
+      console.error('Error getting deletion impact:', error);
+      res.status(500).json({ 
+        message: "Failed to get deletion impact",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   app.delete("/api/courses/:id", requireAdmin, async (req, res) => {
     try {
-      await storage.deleteCourse(req.params.id);
-      res.json({ message: "Course deleted successfully" });
-    } catch (error) {
+      // Get course details before deletion for logging
+      const course = await storage.getCourse(req.params.id);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      // Get enrollment count for logging
+      const enrollments = await storage.getCourseEnrollments(req.params.id);
+      const enrolledUserIds = [...new Set(enrollments.map(e => e.user?.id).filter(Boolean))];
+
+      const success = await storage.deleteCourse(req.params.id);
+      
+      if (success) {
+        console.log(`Course deleted: ${course.title} (ID: ${req.params.id})`);
+        console.log(`Cleaned up ${enrollments.length} enrollments for ${enrolledUserIds.length} users`);
+        
+        res.json({ 
+          success: true,
+          message: "Course and all related data deleted successfully",
+          details: {
+            courseName: course.title,
+            enrollmentsRemoved: enrollments.length,
+            usersAffected: enrolledUserIds.length
+          }
+        });
+      } else {
+        res.status(404).json({ message: "Course not found" });
+      }
+    } catch (error: any) {
       console.error('Course deletion error:', error);
-      res.status(500).json({ message: "Failed to delete course" });
+      res.status(500).json({ 
+        message: "Failed to delete course and related data",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
