@@ -86,6 +86,13 @@ export class Storage {
   }
 
   async deleteUser(id: string): Promise<boolean> {
+    // First delete all related certificates
+    await db.delete(certificates).where(eq(certificates.userId, id));
+    
+    // Then delete all related enrollments
+    await db.delete(enrollments).where(eq(enrollments.userId, id));
+    
+    // Finally delete the user
     const result = await db.delete(users).where(eq(users.id, id));
     return result.rowCount > 0;
   }
@@ -136,23 +143,7 @@ export class Storage {
   }
 
   async getAllCourses(): Promise<Course[]> {
-    // Removed description from the select statement to hide it
-    return db.select({
-      id: courses.id,
-      title: courses.title,
-      videoPath: courses.videoPath,
-      duration: courses.duration,
-      createdBy: courses.createdBy,
-      courseType: courses.courseType,
-      defaultDeadlineDays: courses.defaultDeadlineDays,
-      reminderDays: courses.reminderDays,
-      isComplianceCourse: courses.isComplianceCourse,
-      isAutoEnrollNewEmployees: courses.isAutoEnrollNewEmployees,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      isActive: courses.isActive,
-      renewalPeriodMonths: courses.renewalPeriodMonths,
-    }).from(courses).where(eq(courses.isActive, true)).orderBy(desc(courses.createdAt));
+    return db.select().from(courses).where(eq(courses.isActive, true)).orderBy(desc(courses.createdAt));
   }
 
   async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[]; youtubeUrl?: string }>): Promise<Course | null> {
