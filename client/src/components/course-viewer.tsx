@@ -30,6 +30,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   console.log('Course data:', enrollment?.course);
   console.log('CourseId from enrollment.courseId:', enrollment?.courseId);
   console.log('CourseId from enrollment.course.id:', enrollment?.course?.id);
+  console.log('Course videoPath:', enrollment?.course?.videoPath);
 
 
   const courseId = enrollment?.course?.id || enrollment?.courseId;
@@ -215,25 +216,51 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="aspect-video bg-gray-900 rounded-lg mb-4 relative">
-            {course?.youtubeUrl ? (
-              <div className="w-full bg-gray-900 rounded-lg overflow-hidden">
-                <iframe
-                  className="w-full h-full"
-                  src={getEmbedUrl(course.youtubeUrl)}
-                  title={course.title}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  onLoad={() => {
-                    // Auto-mark as watched for YouTube videos since we can't track progress
-                    setTimeout(() => {
-                      setHasWatchedVideo(true);
-                      setVideoProgress(100);
-                      updateProgressMutation.mutate(90);
-                    }, 3000); // Wait 3 seconds before marking as watched
+            {course?.videoPath ? (
+              getEmbedUrl(course.videoPath) ? (
+                <div className="w-full h-full bg-gray-900 rounded-lg overflow-hidden">
+                  <iframe
+                    className="w-full h-full"
+                    src={getEmbedUrl(course.videoPath)}
+                    title={course.title}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    onLoad={() => {
+                      // Auto-mark as watched for YouTube videos since we can't track progress
+                      setTimeout(() => {
+                        setHasWatchedVideo(true);
+                        setVideoProgress(100);
+                        updateProgressMutation.mutate(90);
+                      }, 3000); // Wait 3 seconds before marking as watched
+                    }}
+                  ></iframe>
+                </div>
+              ) : (
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover rounded-lg"
+                  controls
+                  onError={(e) => {
+                    console.error('Video error:', e);
+                    setError('Unable to load video. Please contact your administrator.');
                   }}
-                ></iframe>
-              </div>
+                  onTimeUpdate={() => {
+                    if (videoRef.current) {
+                      const progress = Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                      setVideoProgress(progress);
+                      
+                      if (progress >= 80 && !hasWatchedVideo) {
+                        setHasWatchedVideo(true);
+                        updateProgressMutation.mutate(progress);
+                      }
+                    }
+                  }}
+                >
+                  <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              )
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center text-white">

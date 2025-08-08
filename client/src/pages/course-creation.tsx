@@ -126,17 +126,17 @@ export default function CourseCreation() {
 
   const getEmbedUrl = (url: string) => {
     if (!url) return "";
-    
+
     // Extract video ID from various YouTube URL formats
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
-    
+
     if (match && match[2].length === 11) {
       const videoId = match[2];
       // Add parameters to hide related videos, controls, title and share options
       return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0&showinfo=0&modestbranding=1`;
     }
-    
+
     return "";
   };
 

@@ -169,10 +169,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin-only middleware
   const requireAdmin = async (req: any, res: any, next: any) => {
     console.log('Session check - userId:', req.session.userId, 'userRole:', req.session.userRole);
+    
     if (!req.session.userId || req.session.userRole !== "admin") {
       console.log('Admin access denied - Session:', req.session);
       return res.status(403).json({ message: "Admin access required" });
     }
+
+    // Verify the user still exists and is actually an admin
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.role !== "admin") {
+        console.log('User not found or not admin - destroying session');
+        req.session.destroy();
+        return res.status(403).json({ message: "Admin access required" });
+      }
+    } catch (error) {
+      console.error('Error verifying admin user:', error);
+      return res.status(500).json({ message: "Authentication error" });
+    }
+
     next();
   };
 
@@ -275,11 +290,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Title and description are required" });
       }
 
-      // If it's not a YouTube URL, expect a video file upload
-      if (!youtubeUrl) {
-        if (!req.file) {
-          return res.status(400).json({ message: "Video file or YouTube URL is required" });
-        }
+      // Require either a video file or YouTube URL
+      if (!youtubeUrl && !req.file) {
+        return res.status(400).json({ message: "Video file or YouTube URL is required" });
       }
 
       let parsedQuestions = [];
@@ -293,25 +306,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const courseId = await storage.createCourse({
+      const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        videoPath: req.file ? req.file.filename : undefined, // Store filename if uploaded
-        youtubeUrl: youtubeUrl ? youtubeUrl : undefined, // Store YouTube URL if provided
+        videoPath: req.file ? req.file.filename : undefined,
+        youtubeUrl: youtubeUrl ? youtubeUrl.trim() : undefined,
         courseType: courseType || 'one-time',
-        questions: parsedQuestions, // Embed questions directly in course data
+        createdBy: req.session.userId!,
+        questions: parsedQuestions,
       });
 
       // If there are questions, create a separate quiz entry
       if (parsedQuestions.length > 0) {
-        await storage.addQuizToCourse(courseId, {
+        await storage.addQuizToCourse(course.id, {
           title: `${title} Quiz`,
           questions: parsedQuestions,
           passingScore: 70
         });
       }
 
-      res.json({ success: true, courseId });
+      res.json({ success: true, course });
     } catch (error) {
       console.error('Course creation error:', error);
       res.status(500).json({ 

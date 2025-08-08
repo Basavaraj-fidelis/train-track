@@ -107,9 +107,9 @@ export class Storage {
     const courseToInsert: InsertCourse = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.youtubeUrl, // Use youtubeUrl here
+      videoPath: courseData.youtubeUrl || courseData.videoPath, // Store YouTube URL or video file path
       duration: courseData.duration || 0,
-      createdBy: courseData.createdBy,
+      createdBy: courseData.createdBy || 'admin',
       courseType: courseData.courseType as "recurring" | "one-time" || "one-time",
       defaultDeadlineDays: courseData.defaultDeadlineDays || 30,
       reminderDays: courseData.reminderDays || 7,
@@ -354,7 +354,8 @@ export class Storage {
           title: courses.title,
           description: courses.description,
           duration: courses.duration,
-          videoPath: courses.videoPath, // This will now contain the YouTube URL
+          videoPath: courses.videoPath, // This contains either YouTube URL or video file path
+          youtubeUrl: courses.videoPath, // Alias for compatibility
           courseType: courses.courseType,
           renewalPeriodMonths: courses.renewalPeriodMonths,
         },
