@@ -241,11 +241,11 @@ export default function EmployeeDashboard() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       <Card>
                         <CardHeader>
-                          <CardTitle>Current Courses</CardTitle>
+                          <CardTitle>Assigned Courses</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
-                            {enrollments?.filter((e: any) => !e.completedAt).map((enrollment: any) => (
+                            {enrollments?.map((enrollment: any) => (
                               <div key={enrollment.id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="font-medium text-gray-900">{enrollment.course.title}</h4>
@@ -277,9 +277,9 @@ export default function EmployeeDashboard() {
                                 </Button>
                               </div>
                             ))}
-                            {enrollments?.filter((e: any) => !e.completedAt).length === 0 && (
+                            {(!enrollments || enrollments.length === 0) && (
                               <div className="text-center py-8 text-gray-500">
-                                No active courses. Complete your assigned courses to continue.
+                                No courses assigned yet. Contact HR for course assignments.
                               </div>
                             )}
                           </div>

@@ -937,86 +937,116 @@ export default function EnhancedHRDashboard() {
                   </div>
                 </div>
 
-                {/* Fix course management display layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {courses?.map((course) => (
-                    <Card
-                      key={course.id}
-                      className="hover:shadow-lg transition-shadow"
-                    >
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-start justify-between gap-2">
-                          <span className="font-semibold text-lg leading-tight">
-                            {course.title}
-                          </span>
-                          <Badge variant="secondary" className="shrink-0">
-                            {enrollments?.[course.id] || 0} enrolled
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription className="text-sm text-gray-600 line-clamp-3">
-                          {course.description}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="py-3">
-                        <div className="space-y-3">
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Calendar className="w-4 h-4 mr-2 shrink-0" />
-                            <span>
-                              Created:{" "}
-                              {new Date(course.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          {course.videoPath && (
-                            <div className="flex items-center text-sm text-emerald-600">
-                              <PlayCircle className="w-4 h-4 mr-2 shrink-0" />
-                              <span>Video content available</span>
-                            </div>
-                          )}
-                          {enrollments?.[course.id] &&
-                            enrollments[course.id] > 0 && (
-                              <div className="flex items-center text-sm text-blue-600">
-                                <Users className="w-4 h-4 mr-2 shrink-0" />
-                                <span>Currently assigned to employees</span>
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Course Title</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Created Date</TableHead>
+                          <TableHead>Enrolled Users</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {courses?.map((course) => (
+                          <TableRow key={course.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {course.videoPath && (
+                                  <PlayCircle className="w-4 h-4 text-emerald-600" />
+                                )}
+                                <span>{course.title}</span>
                               </div>
-                            )}
-                        </div>
-                      </CardContent>
-                      <CardFooter className="flex justify-between pt-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditCourse(course)}
-                          disabled={
-                            !!(
-                              enrollments?.[course.id] &&
-                              enrollments[course.id] > 0
-                            )
-                          }
-                          className="flex items-center gap-2"
-                        >
-                          <Edit className="w-4 h-4" />
-                          {enrollments?.[course.id] &&
-                          enrollments[course.id] > 0
-                            ? "Assigned"
-                            : "Edit"}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteCourse(course.id)}
-                          className="flex items-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                  {(!courses || courses.length === 0) && (
-                    <div className="text-center py-8 text-gray-500">
-                      No courses found. Create your first course to get started.
-                    </div>
-                  )}
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              <div className="truncate" title={course.description}>
+                                {course.description}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(course.createdAt).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">
+                                {enrollments?.[course.id] || 0} enrolled
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={course.isActive ? "default" : "secondary"}>
+                                {course.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedCourse(course);
+                                    setSelectedCourseEnrollments(course);
+                                  }}
+                                  title="View assigned users"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedCourse(course);
+                                    setEmailAssignmentOpen(true);
+                                  }}
+                                  title="Assign via email"
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedCourse(course);
+                                    setAssignmentsTrackerOpen(true);
+                                  }}
+                                  title="Track assignments"
+                                >
+                                  <Target className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditCourse(course)}
+                                  disabled={
+                                    !!(
+                                      enrollments?.[course.id] &&
+                                      enrollments[course.id] > 0
+                                    )
+                                  }
+                                  title="Edit course"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteCourse(course.id)}
+                                  title="Delete course"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {(!courses || courses.length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        No courses found. Create your first course to get started.
+                      </div>
+                    )}
                 </div>
               </div>
             )}

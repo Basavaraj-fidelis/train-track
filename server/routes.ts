@@ -169,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin-only middleware
   const requireAdmin = async (req: any, res: any, next: any) => {
     console.log('Session check - userId:', req.session.userId, 'userRole:', req.session.userRole);
-    
+
     if (!req.session.userId || req.session.userRole !== "admin") {
       console.log('Admin access denied - Session:', req.session);
       return res.status(403).json({ message: "Admin access required" });
@@ -1106,7 +1106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const course = await storage.getCourse(enrollment.courseId);
-      
+
       // Check if user already exists by email
       let existingUser = null;
       if (enrollment.assignedEmail) {

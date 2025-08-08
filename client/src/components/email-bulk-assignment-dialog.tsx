@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -34,10 +33,19 @@ export default function EmailBulkAssignmentDialog({
       return response.json();
     },
     onSuccess: (data) => {
+      const { summary, results } = data;
+      let description = data.message;
+
+      if (summary) {
+        description = `${summary.newAssignments} new assignments, ${summary.reAssignments} re-assignments, ${summary.existingEnrollments} existing enrollments`;
+      }
+
       toast({
-        title: "Success",
-        description: data.message,
+        title: "Assignment Complete",
+        description: description,
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
       onOpenChange(false);
       setEmailText("");
