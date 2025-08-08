@@ -260,6 +260,31 @@ export class Storage {
     return result.rowCount > 0;
   }
 
+  async deleteQuizByCourseId(courseId: string): Promise<boolean> {
+    const result = await db.delete(quizzes).where(eq(quizzes.courseId, courseId));
+    return result.rowCount > 0;
+  }
+
+  async addQuizToCourse(courseId: string, quizData: Omit<InsertQuiz, 'courseId'>): Promise<Quiz> {
+    // Check if a quiz already exists for this course
+    const existingQuiz = await this.getQuizByCourseId(courseId);
+    
+    if (existingQuiz) {
+      // Update existing quiz
+      const updatedQuiz = await this.updateQuiz(existingQuiz.id, {
+        ...quizData,
+        courseId
+      });
+      return updatedQuiz!;
+    } else {
+      // Create new quiz
+      return this.createQuiz({
+        ...quizData,
+        courseId
+      });
+    }
+  }
+
   // Enrollment management
   async createEnrollment(enrollmentData: InsertEnrollment): Promise<Enrollment> {
     // Generate assignment token if assigning by email
