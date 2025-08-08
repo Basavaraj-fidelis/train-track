@@ -79,7 +79,7 @@ export default function CourseCreation() {
         title: existingCourse.title || "",
         description: existingCourse.description || "",
         courseType: existingCourse.courseType || "one-time",
-        youtubeUrl: existingCourse.youtubeUrl || "",
+        youtubeUrl: existingCourse.videoPath || existingCourse.youtubeUrl || "",
         quizQuestions: existingCourse.questions || [],
       });
     }
@@ -133,8 +133,8 @@ export default function CourseCreation() {
 
     if (match && match[2].length === 11) {
       const videoId = match[2];
-      // Add parameters to hide related videos, controls, title and share options
-      return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0&showinfo=0&modestbranding=1`;
+      // Add parameters to hide title, share button, and related videos
+      return `https://www.youtube.com/embed/${videoId}?rel=0&showinfo=0&modestbranding=1&iv_load_policy=3`;
     }
 
     return "";

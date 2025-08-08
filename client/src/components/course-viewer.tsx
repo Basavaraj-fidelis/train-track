@@ -186,17 +186,16 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const getEmbedUrl = (url: string) => {
     if (!url) return "";
 
-    // Extract video ID from various YouTube URL formats
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
+    // Handle YouTube URLs
+    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(youtubeRegex);
 
-    if (match && match[2].length === 11) {
-      const videoId = match[2];
-      // Add parameters to hide related videos, controls, title and share options
-      return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0&showinfo=0&modestbranding=1&autoplay=1`;
+    if (match && match[1]) {
+      // Parameters to hide title, share button, related videos, and other YouTube UI elements
+      return `https://www.youtube.com/embed/${match[1]}?autoplay=0&rel=0&showinfo=0&modestbranding=1&iv_load_policy=3&fs=1&cc_load_policy=0&disablekb=0&controls=1`;
     }
 
-    return "";
+    return url; // Return as-is for other video URLs
   };
 
   if (showQuiz && quiz) {
@@ -249,7 +248,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                     if (videoRef.current) {
                       const progress = Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100);
                       setVideoProgress(progress);
-                      
+
                       if (progress >= 80 && !hasWatchedVideo) {
                         setHasWatchedVideo(true);
                         updateProgressMutation.mutate(progress);

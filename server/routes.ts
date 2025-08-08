@@ -1181,6 +1181,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check if course has any assignments
+  app.get("/api/courses/:courseId/has-assignments", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      res.json({ hasAssignments: assignments.length > 0 });
+    } catch (error) {
+      console.error("Error checking course assignments:", error);
+      res.status(500).json({ message: "Failed to check assignments" });
+    }
+  });
+
   // Send reminders
   app.post("/api/send-reminders/:courseId", requireAdmin, async (req, res) => {
     try {

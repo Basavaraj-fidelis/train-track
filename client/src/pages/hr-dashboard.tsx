@@ -562,41 +562,68 @@ export default function HRDashboard() {
                   </Dialog>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-4">
                   {courses?.map((course: any) => (
-                    <Card key={course.id} className="hover:shadow-lg transition-shadow">
-                      <CardContent className="pt-6">
-                        <div className="w-full h-40 bg-gray-200 rounded-lg mb-4 relative overflow-hidden flex items-center justify-center">
-                          <Play className="text-gray-400" size={48} />
-                          {course.duration && (
-                            <div className="absolute top-2 right-2 bg-primary text-white px-2 py-1 rounded text-xs">
-                              {course.duration} min
+                    <Card key={course.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-4 flex-1">
+                            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Play className="text-blue-600" size={24} />
                             </div>
-                          )}
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
-                        <p className="text-gray-600 text-sm mb-4 truncate">{course.description}</p>
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                          <span>
-                            <Clock size={12} className="inline mr-1" />
-                            Created: {new Date(course.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button variant="outline" size="sm" className="flex-1">
-                            <Edit size={14} className="mr-1" />
-                            Edit
-                          </Button>
-                          <Button variant="outline" size="sm" className="flex-1">
-                            Assign
-                          </Button>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
+                              <p className="text-gray-600 text-sm mb-3 line-clamp-2">{course.description}</p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                <div className="flex items-center">
+                                  <Clock size={14} className="mr-1" />
+                                  Created: {new Date(course.createdAt).toLocaleDateString()}
+                                </div>
+                                <Badge variant={course.courseType === 'recurring' ? 'secondary' : 'default'}>
+                                  {course.courseType === 'recurring' ? 'Recurring' : 'One-time'}
+                                </Badge>
+                                <Badge variant={course.isActive ? 'default' : 'secondary'}>
+                                  {course.isActive ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setLocation(`/course-creation?edit=${course.id}`)}
+                            >
+                              <Edit size={14} className="mr-1" />
+                              Edit
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Users size={14} className="mr-1" />
+                              Assign
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this course?')) {
+                                  // Add delete functionality here
+                                }
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                   {(!courses || courses.length === 0) && (
-                    <div className="col-span-full text-center py-12 text-gray-500">
-                      No courses found. Create your first course to get started.
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Book className="text-gray-400" size={24} />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
+                      <p className="text-gray-500">Create your first course to get started.</p>
                     </div>
                   )}
                 </div>
