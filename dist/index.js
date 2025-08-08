@@ -1000,6 +1000,12 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/employees/:id", requireAdmin, async (req, res) => {
     try {
+      const enrollments2 = await storage.getUserEnrollments(req.params.id);
+      if (enrollments2.length > 0) {
+        return res.status(400).json({
+          message: "Cannot delete employee with active course enrollments. Please remove enrollments first."
+        });
+      }
       const success = await storage.deleteUser(req.params.id);
       if (success) {
         res.json({ success: true });
@@ -1007,7 +1013,11 @@ async function registerRoutes(app2) {
         res.status(404).json({ message: "Employee not found" });
       }
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete employee" });
+      console.error("Employee deletion error:", error);
+      res.status(500).json({
+        message: "Failed to delete employee",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
     }
   });
   app2.get("/api/courses", async (req, res) => {
@@ -1379,10 +1389,10 @@ async function registerRoutes(app2) {
       console.log("Quiz validation:", { passingScore, isPassing, currentScore: score });
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: isPassing ? 100 : 90,
-        // Mark as 90% if not passing to allow retake
-        completedAt: isPassing ? /* @__PURE__ */ new Date() : null
-        // Only mark completed if passing
+        progress: isPassing ? 95 : 90,
+        // Mark as 95% if passing (awaiting acknowledgment), 90% if not passing
+        completedAt: null
+        // Don't mark completed until certificate is acknowledged
       });
       let certificate = null;
       console.log("Quiz passed - awaiting acknowledgment for certificate generation");
@@ -1470,6 +1480,8 @@ async function registerRoutes(app2) {
       }
       await storage.updateEnrollment(enrollment.id, {
         certificateIssued: true,
+        progress: 100,
+        // Set progress to 100% when certificate is generated
         completedAt: /* @__PURE__ */ new Date(),
         expiresAt,
         isExpired: false
