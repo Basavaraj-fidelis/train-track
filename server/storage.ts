@@ -136,7 +136,23 @@ export class Storage {
   }
 
   async getAllCourses(): Promise<Course[]> {
-    return db.select().from(courses).where(eq(courses.isActive, true)).orderBy(desc(courses.createdAt));
+    // Removed description from the select statement to hide it
+    return db.select({
+      id: courses.id,
+      title: courses.title,
+      videoPath: courses.videoPath,
+      duration: courses.duration,
+      createdBy: courses.createdBy,
+      courseType: courses.courseType,
+      defaultDeadlineDays: courses.defaultDeadlineDays,
+      reminderDays: courses.reminderDays,
+      isComplianceCourse: courses.isComplianceCourse,
+      isAutoEnrollNewEmployees: courses.isAutoEnrollNewEmployees,
+      createdAt: courses.createdAt,
+      updatedAt: courses.updatedAt,
+      isActive: courses.isActive,
+      renewalPeriodMonths: courses.renewalPeriodMonths,
+    }).from(courses).where(eq(courses.isActive, true)).orderBy(desc(courses.createdAt));
   }
 
   async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[]; youtubeUrl?: string }>): Promise<Course | null> {
@@ -337,33 +353,88 @@ export class Storage {
   }
 
   async getUserEnrollments(userId: string): Promise<any[]> {
-    return db
+    const enrollmentsData = await db
       .select({
         id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
         enrolledAt: enrollments.enrolledAt,
         completedAt: enrollments.completedAt,
         progress: enrollments.progress,
         quizScore: enrollments.quizScore,
         certificateIssued: enrollments.certificateIssued,
-        deadline: enrollments.deadline,
-        status: enrollments.status,
         expiresAt: enrollments.expiresAt,
         isExpired: enrollments.isExpired,
+        renewalCount: enrollments.renewalCount,
+        assignedEmail: enrollments.assignedEmail,
+        assignmentToken: enrollments.assignmentToken,
+        deadline: enrollments.deadline,
+        status: enrollments.status,
+        remindersSent: enrollments.remindersSent,
+        lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
         course: {
           id: courses.id,
           title: courses.title,
           description: courses.description,
           duration: courses.duration,
-          videoPath: courses.videoPath, // This contains either YouTube URL or video file path
-          youtubeUrl: courses.videoPath, // Alias for compatibility
           courseType: courses.courseType,
           renewalPeriodMonths: courses.renewalPeriodMonths,
+          isComplianceCourse: courses.isComplianceCourse,
         },
       })
       .from(enrollments)
-      .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .leftJoin(courses, eq(enrollments.courseId, courses.id))
       .where(eq(enrollments.userId, userId))
-      .orderBy(desc(enrollments.enrolledAt));
+      .orderBy(enrollments.enrolledAt);
+
+    return enrollmentsData.map(enrollment => ({
+      ...enrollment,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+    }));
+  }
+
+  async getUserActiveEnrollments(userId: string): Promise<Enrollment[]> {
+    const enrollmentsData = await db
+      .select({
+        id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
+        enrolledAt: enrollments.enrolledAt,
+        completedAt: enrollments.completedAt,
+        progress: enrollments.progress,
+        quizScore: enrollments.quizScore,
+        certificateIssued: enrollments.certificateIssued,
+        expiresAt: enrollments.expiresAt,
+        isExpired: enrollments.isExpired,
+        renewalCount: enrollments.renewalCount,
+        assignedEmail: enrollments.assignedEmail,
+        assignmentToken: enrollments.assignmentToken,
+        deadline: enrollments.deadline,
+        status: enrollments.status,
+        remindersSent: enrollments.remindersSent,
+        lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
+        course: {
+          id: courses.id,
+          title: courses.title,
+          description: courses.description,
+          duration: courses.duration,
+          courseType: courses.courseType,
+          renewalPeriodMonths: courses.renewalPeriodMonths,
+          isComplianceCourse: courses.isComplianceCourse,
+        },
+      })
+      .from(enrollments)
+      .leftJoin(courses, eq(enrollments.courseId, courses.id))
+      .where(and(
+        eq(enrollments.userId, userId),
+        eq(courses.isActive, true) // Only check enrollments for active courses
+      ))
+      .orderBy(enrollments.enrolledAt);
+
+    return enrollmentsData.map(enrollment => ({
+      ...enrollment,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+    }));
   }
 
   async getAllEnrollments(): Promise<any[]> {

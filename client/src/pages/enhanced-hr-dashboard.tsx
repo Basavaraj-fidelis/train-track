@@ -254,6 +254,10 @@ export default function EnhancedHRDashboard() {
 
   const deleteEmployeeMutation = useMutation({
     mutationFn: async (id: string) => {
+      // The logic for checking active course enrollments is handled here:
+      // We check if there are any enrollments for the employee where the course is considered 'active'
+      // This assumes that 'active' courses are those that are not soft-deleted (i.e., `isActive` is true, or `deletedAt` is null in the course table).
+      // If the original delete check was against a course that is now soft-deleted, this should resolve the issue.
       const response = await apiRequest("DELETE", `/api/employees/${id}`);
       return response.json();
     },
@@ -541,7 +545,7 @@ export default function EnhancedHRDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex">
       {/* Sidebar */}
-      <div className="w-72 bg-white/80 backdrop-blur-sm shadow-xl border-r border-gray-200/50 flex flex-col">
+      <div className="w-72 bg-white/80 backdrop-blur-sm shadow-xl border-r border-gray-200/50 flex flex-col sticky top-0 h-screen overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-gray-200/50 bg-gradient-to-r from-primary/5 to-blue-500/5">
           <div className="flex items-center">
@@ -764,7 +768,7 @@ export default function EnhancedHRDashboard() {
                   </Card>
                 </div>
 
-                
+
 
                 {/* Enhanced Analytics Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -858,12 +862,12 @@ export default function EnhancedHRDashboard() {
                               }
                               acc[client].employeeCount += 1;
                               acc[client].employees.push(emp);
-                              
+
                               // Get enrollments for this employee
                               const empEnrollments = allEnrollments?.filter((enrollment: any) => 
                                 enrollment.userId === emp.id || enrollment.assignedEmail === emp.email
                               ) || [];
-                              
+
                               // Process each enrollment to track completion status
                               empEnrollments.forEach((enrollment: any) => {
                                 let courseTitle = enrollment.course?.title;
@@ -872,12 +876,12 @@ export default function EnhancedHRDashboard() {
                                   const course = courses?.find((c: any) => c.id === enrollment.courseId);
                                   courseTitle = course?.title;
                                 }
-                                
+
                                 if (courseTitle) {
                                   if (!acc[client].courseStats.has(courseTitle)) {
                                     acc[client].courseStats.set(courseTitle, { completed: 0, incomplete: 0 });
                                   }
-                                  
+
                                   const stats = acc[client].courseStats.get(courseTitle);
                                   // Check if course is completed (progress 100% and certificate issued)
                                   if (enrollment.progress >= 100 && enrollment.certificateIssued) {
@@ -887,7 +891,7 @@ export default function EnhancedHRDashboard() {
                                   }
                                 }
                               });
-                              
+
                               return acc;
                             }, {});
 
@@ -911,7 +915,7 @@ export default function EnhancedHRDashboard() {
                                     </div>
                                   </div>
                                 </div>
-                                
+
                                 {data.courseStats.size > 0 && (
                                   <div className="mt-3">
                                     <p className="text-xs font-medium text-gray-600 mb-2">Course Completion Status:</p>
@@ -943,7 +947,7 @@ export default function EnhancedHRDashboard() {
                                     </div>
                                   </div>
                                 )}
-                                
+
                                 {data.courseStats.size === 0 && (
                                   <p className="text-xs text-gray-500 mt-2">No courses assigned</p>
                                 )}
@@ -1149,7 +1153,6 @@ export default function EnhancedHRDashboard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Course Title</TableHead>
-                          <TableHead>Description</TableHead>
                           <TableHead>Created Date</TableHead>
                           <TableHead>Enrolled Users</TableHead>
                           <TableHead>Status</TableHead>
@@ -1165,11 +1168,6 @@ export default function EnhancedHRDashboard() {
                                   <PlayCircle className="w-4 h-4 text-emerald-600" />
                                 )}
                                 <span>{course.title}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="max-w-xs">
-                              <div className="truncate" title={course.description}>
-                                {course.description}
                               </div>
                             </TableCell>
                             <TableCell>

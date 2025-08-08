@@ -247,10 +247,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/employees/:id", requireAdmin, async (req, res) => {
     try {
-      // Check if employee has any enrollments or certificates
-      const enrollments = await storage.getUserEnrollments(req.params.id);
+      // Check if employee has any active enrollments (only for active courses)
+      const activeEnrollments = await storage.getUserActiveEnrollments(req.params.id);
       
-      if (enrollments.length > 0) {
+      if (activeEnrollments.length > 0) {
         return res.status(400).json({ 
           message: "Cannot delete employee with active course enrollments. Please remove enrollments first." 
         });
