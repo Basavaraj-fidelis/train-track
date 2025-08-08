@@ -537,64 +537,100 @@ export default function EnhancedHRDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <GraduationCap className="h-8 w-8 text-primary mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">
-                TrainTrack HR Portal
-              </h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex">
+      {/* Sidebar */}
+      <div className="w-72 bg-white/80 backdrop-blur-sm shadow-xl border-r border-gray-200/50 flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200/50 bg-gradient-to-r from-primary/5 to-blue-500/5">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center mr-3 shadow-lg">
+              <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {authData?.user?.name}
-              </span>
-              <Button variant="ghost" onClick={logout}>
-                <LogOut size={16} className="mr-2" />
-                Logout
-              </Button>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">
+                TrainTrack HR
+              </h1>
+              <p className="text-sm text-gray-600">Admin Portal</p>
             </div>
           </div>
         </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-2">
+          {[
+            { id: "dashboard", label: "Dashboard", icon: BarChart3, color: "text-blue-600" },
+            { id: "courses", label: "Course Management", icon: Book, color: "text-green-600" },
+            { id: "employees", label: "Employee Directory", icon: Users, color: "text-purple-600" },
+            { id: "performance", label: "Performance Monitor", icon: Activity, color: "text-orange-600" },
+            { id: "settings", label: "Settings", icon: Settings, color: "text-gray-600" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveSection(item.id)}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                activeSection === item.id
+                  ? "bg-gradient-to-r from-primary to-blue-600 text-white shadow-lg transform scale-[1.02]"
+                  : `text-gray-700 hover:bg-gray-100/60 hover:shadow-md ${item.color}`
+              }`}
+            >
+              <item.icon size={18} className="mr-3 flex-shrink-0" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* User Info & Logout */}
+        <div className="p-4 border-t border-gray-200/50">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-sm font-medium">
+                  {authData?.user?.name?.substring(0, 2).toUpperCase() || "A"}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{authData?.user?.name}</p>
+                <p className="text-xs text-gray-500">Administrator</p>
+              </div>
+            </div>
+          </div>
+          <Button variant="ghost" onClick={logout} className="w-full justify-start text-gray-600 hover:text-gray-900 hover:bg-gray-100/60">
+            <LogOut size={16} className="mr-2" />
+            Logout
+          </Button>
+        </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar */}
-          <div className="w-64 flex-shrink-0">
-            <nav className="space-y-2">
-              {[
-                { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-                { id: "courses", label: "Course Management", icon: Book },
-                { id: "employees", label: "Employee Directory", icon: Users },
-                {
-                  id: "performance",
-                  label: "Performance Monitor",
-                  icon: Activity,
-                },
-                { id: "settings", label: "Settings", icon: Settings },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    activeSection === item.id
-                      ? "bg-primary text-primary-foreground"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <item.icon size={16} className="mr-3 flex-shrink-0" />
-                  {item.label}
-                </button>
-              ))}
-            </nav>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-h-screen">
+        {/* Top Header */}
+        <div className="bg-white/60 backdrop-blur-sm shadow-sm border-b border-gray-200/50 px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 capitalize">
+                {activeSection === "dashboard" && "Dashboard Overview"}
+                {activeSection === "courses" && "Course Management"}
+                {activeSection === "employees" && "Employee Directory"}
+                {activeSection === "performance" && "Performance Monitor"}
+                {activeSection === "settings" && "System Settings"}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {activeSection === "dashboard" && "Monitor your training programs and employee progress"}
+                {activeSection === "courses" && "Create, manage, and track your training courses"}
+                {activeSection === "employees" && "Manage employee profiles and assignments"}
+                {activeSection === "performance" && "Monitor system performance and analytics"}
+                {activeSection === "settings" && "Configure system preferences and options"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Welcome back,</p>
+              <p className="font-medium text-gray-900">{authData?.user?.name}</p>
+            </div>
           </div>
+        </div>
 
-          {/* Main Content */}
-          <div className="flex-1">
+        {/* Content Area */}
+        <div className="flex-1 p-8 overflow-auto">
             {/* Dashboard Section */}
             {activeSection === "dashboard" && (
               <div>
@@ -634,20 +670,20 @@ export default function EnhancedHRDashboard() {
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <Card>
+                  <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100/50 hover:shadow-xl transition-all duration-300">
                     <CardContent className="pt-6">
                       <div className="flex items-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                          <Users className="text-blue-600" size={24} />
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                          <Users className="text-white" size={26} />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm font-medium text-blue-700 mb-1">
                             Total Employees
                           </p>
                           {statsLoading ? (
-                            <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-8 bg-blue-200 rounded-lg animate-pulse"></div>
                           ) : (
-                            <p className="text-2xl font-bold text-gray-900">
+                            <p className="text-3xl font-bold text-blue-900">
                               {stats?.totalEmployees || 0}
                             </p>
                           )}
@@ -656,25 +692,25 @@ export default function EnhancedHRDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100/50 hover:shadow-xl transition-all duration-300">
                     <CardContent className="pt-6">
                       <div className="flex items-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                          <BookOpen className="text-green-600" size={24} />
+                        <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                          <BookOpen className="text-white" size={26} />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm font-medium text-green-700 mb-1">
                             Active Courses
                           </p>
                           {statsLoading ? (
-                            <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-8 bg-green-200 rounded-lg animate-pulse"></div>
                           ) : (
-                            <p className="text-2xl font-bold text-gray-900">
+                            <p className="text-3xl font-bold text-green-900">
                               {stats?.activeCourses || 0}
                             </p>
                           )}
                           {coursesError && (
-                            <p className="text-xs text-red-500 mt-1">
+                            <p className="text-xs text-red-600 mt-1 font-medium">
                               Connection error
                             </p>
                           )}
@@ -683,66 +719,81 @@ export default function EnhancedHRDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Pending Assignments
-                      </CardTitle>
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {stats?.pendingAssignments || 0}
+                  <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100/50 hover:shadow-xl transition-all duration-300">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                          <Clock className="text-white" size={26} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-orange-700 mb-1">
+                            Pending Assignments
+                          </p>
+                          <p className="text-3xl font-bold text-orange-900">
+                            {stats?.pendingAssignments || 0}
+                          </p>
+                          <p className="text-xs text-orange-600 font-medium">
+                            Courses in progress
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Courses in progress
-                      </p>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Certificates Issued
-                      </CardTitle>
-                      <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {stats?.certificatesIssued || 0}
+                  <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100/50 hover:shadow-xl transition-all duration-300">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                          <CheckCircle className="text-white" size={26} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-purple-700 mb-1">
+                            Certificates Issued
+                          </p>
+                          <p className="text-3xl font-bold text-purple-900">
+                            {stats?.certificatesIssued || 0}
+                          </p>
+                          <p className="text-xs text-purple-600 font-medium">
+                            Successful completions
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Successful completions
-                      </p>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Reminders Sent
-                      </CardTitle>
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {stats?.remindersSent || 0}
+                  <Card className="border-0 shadow-lg bg-gradient-to-br from-teal-50 to-teal-100/50 hover:shadow-xl transition-all duration-300">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center">
+                        <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                          <Mail className="text-white" size={26} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-teal-700 mb-1">
+                            Reminders Sent
+                          </p>
+                          <p className="text-3xl font-bold text-teal-900">
+                            {stats?.remindersSent || 0}
+                          </p>
+                          <p className="text-xs text-teal-600 font-medium">
+                            Email reminders sent
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Email reminders sent
-                      </p>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* Enhanced Analytics Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Training Progress Overview</CardTitle>
-                      <CardDescription>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                  <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-xl">
+                      <CardTitle className="flex items-center gap-2 text-gray-800">
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                        Training Progress Overview
+                      </CardTitle>
+                      <CardDescription className="text-gray-600">
                         Key metrics showing training effectiveness and engagement
                       </CardDescription>
                     </CardHeader>
@@ -800,9 +851,12 @@ export default function EnhancedHRDashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Client Overview</CardTitle>
+                  <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                    <CardHeader className="bg-gradient-to-r from-green-50 to-teal-50 rounded-t-xl">
+                      <CardTitle className="flex items-center gap-2 text-gray-800">
+                        <Users className="w-5 h-5 text-green-600" />
+                        Client Overview
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
@@ -835,9 +889,12 @@ export default function EnhancedHRDashboard() {
                 </div>
 
                 {/* Recent Activity */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Course Activity</CardTitle>
+                <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-xl">
+                    <CardTitle className="flex items-center gap-2 text-gray-800">
+                      <Activity className="w-5 h-5 text-purple-600" />
+                      Recent Course Activity
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
@@ -884,21 +941,27 @@ export default function EnhancedHRDashboard() {
             {/* Employee Management Section */}
             {activeSection === "employees" && (
               <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Employee Directory
-                  </h2>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" onClick={exportEmployees}>
-                      <Download size={16} className="mr-2" />
-                      Export Directory
-                    </Button>
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <div className="flex space-x-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={exportEmployees}
+                        className="bg-white/70 backdrop-blur-sm hover:bg-white shadow-md"
+                      >
+                        <Download size={16} className="mr-2" />
+                        Export Directory
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Employee Directory</CardTitle>
+                <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-t-xl">
+                    <CardTitle className="flex items-center gap-2 text-gray-800">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      Employee Directory
+                    </CardTitle>
                     <p className="text-sm text-gray-600">
                       Employees are automatically added when they access courses
                       via email assignments
@@ -996,19 +1059,19 @@ export default function EnhancedHRDashboard() {
             {/* Course Management Section */}
             {activeSection === "courses" && (
               <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Course Management
-                  </h2>
-                  <div className="flex space-x-2">
-                    <Button onClick={() => setLocation("/create-course")}>
+                <div className="flex justify-between items-center mb-8">
+                  <div className="flex space-x-3">
+                    <Button 
+                      onClick={() => setLocation("/create-course")}
+                      className="bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-700 shadow-lg"
+                    >
                       <Plus size={16} className="mr-2" />
                       Create Course
                     </Button>
                   </div>
                 </div>
 
-                <Card>
+                <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm overflow-hidden">
                   <CardContent className="p-0">
                     <Table>
                       <TableHeader>
@@ -1377,7 +1440,6 @@ export default function EnhancedHRDashboard() {
               </div>
             )}
           </div>
-        </div>
       </div>
 
       {/* Dialogs */}

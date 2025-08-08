@@ -71,80 +71,47 @@ export default function EmployeeDashboard() {
   const certificateCount = certificates?.length || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-purple-50">
       <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-sm border-r border-gray-200">
-          <div className="p-6 border-b border-gray-200">
+        <div className="w-72 bg-white/80 backdrop-blur-sm shadow-xl border-r border-gray-200/50">
+          <div className="p-6 border-b border-gray-200/50 bg-gradient-to-r from-emerald-500/10 to-blue-500/10">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
-                <GraduationCap className="text-white" size={16} />
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center mr-3 shadow-lg">
+                <GraduationCap className="text-white" size={18} />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">TrainTrack</h2>
-                <p className="text-xs text-gray-500">Employee Portal</p>
+                <h2 className="font-bold text-gray-900 text-lg">TrainTrack</h2>
+                <p className="text-sm text-gray-600">Employee Portal</p>
               </div>
             </div>
           </div>
 
-          <nav className="p-4">
-            <ul className="space-y-2">
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveSection("dashboard");
-                    setSelectedCourse(null);
-                  }}
-                  className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
-                    activeSection === "dashboard" ? "bg-green-50 text-green-600" : ""
-                  }`}
-                >
-                  <CheckCircle size={16} className="mr-3" />
-                  Dashboard
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveSection("courses");
-                    setSelectedCourse(null);
-                  }}
-                  className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
-                    activeSection === "courses" ? "bg-green-50 text-green-600" : ""
-                  }`}
-                >
-                  <Book size={16} className="mr-3" />
-                  My Courses
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveSection("certificates");
-                    setSelectedCourse(null);
-                  }}
-                  className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
-                    activeSection === "certificates" ? "bg-green-50 text-green-600" : ""
-                  }`}
-                >
-                  <Tag size={16} className="mr-3" />
-                  Certificates
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveSection("profile");
-                    setSelectedCourse(null);
-                  }}
-                  className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg w-full text-left ${
-                    activeSection === "profile" ? "bg-green-50 text-green-600" : ""
-                  }`}
-                >
-                  <User size={16} className="mr-3" />
-                  Profile
-                </button>
-              </li>
+          <nav className="flex-1 p-4">
+            <ul className="space-y-3">
+              {[
+                { id: "dashboard", label: "Dashboard", icon: CheckCircle, color: "text-emerald-600" },
+                { id: "courses", label: "My Courses", icon: Book, color: "text-blue-600" },
+                { id: "certificates", label: "Certificates", icon: Award, color: "text-purple-600" },
+                { id: "profile", label: "Profile", icon: User, color: "text-gray-600" },
+              ].map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => {
+                      setActiveSection(item.id);
+                      setSelectedCourse(null);
+                    }}
+                    className={`sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-xl w-full text-left transition-all duration-200 ${
+                      activeSection === item.id 
+                        ? "bg-gradient-to-r from-emerald-500 to-blue-600 text-white shadow-lg transform scale-[1.02]" 
+                        : `hover:bg-gray-100/60 hover:shadow-md ${item.color}`
+                    }`}
+                  >
+                    <item.icon size={18} className="mr-3" />
+                    {item.label}
+                  </button>
+                </li>
+              ))}
             </ul>
           </nav>
         </div>
@@ -152,23 +119,28 @@ export default function EmployeeDashboard() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 px-8 py-4">
+          <header className="bg-white/60 backdrop-blur-sm border-b border-gray-200/50 px-8 py-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {selectedCourse ? selectedCourse.course.title : "My Dashboard"}
+                <h1 className="text-3xl font-bold text-gray-900 mb-1">
+                  {selectedCourse ? selectedCourse.course.title : "My Learning Dashboard"}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-gray-600 text-lg">
                   Welcome back, {authData?.user?.name || "Employee"}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
-                <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-white text-lg font-bold">
                     {authData?.user?.name?.substring(0, 2).toUpperCase() || "E"}
                   </span>
                 </div>
-                <Button variant="ghost" onClick={logout} size="sm" className="flex items-center">
+                <Button 
+                  variant="ghost" 
+                  onClick={logout} 
+                  size="sm" 
+                  className="flex items-center bg-white/70 hover:bg-white shadow-md"
+                >
                   <LogOut size={16} className="mr-2" />
                   Logout
                 </Button>
@@ -195,43 +167,43 @@ export default function EmployeeDashboard() {
                 {activeSection === "dashboard" && (
                   <div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                      <Card>
+                      <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100/50 hover:shadow-xl transition-all duration-300">
                         <CardContent className="pt-6">
                           <div className="flex items-center">
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                              <Book className="text-green-600" size={24} />
+                            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                              <Book className="text-white" size={26} />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-600">Assigned Courses</p>
-                              <p className="text-2xl font-bold text-gray-900">{totalCourses}</p>
+                              <p className="text-sm font-medium text-blue-700 mb-1">Assigned Courses</p>
+                              <p className="text-3xl font-bold text-blue-900">{totalCourses}</p>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
+                      <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-emerald-100/50 hover:shadow-xl transition-all duration-300">
                         <CardContent className="pt-6">
                           <div className="flex items-center">
-                            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
-                              <CheckCircle className="text-primary" size={24} />
+                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                              <CheckCircle className="text-white" size={26} />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-600">Completed</p>
-                              <p className="text-2xl font-bold text-gray-900">{completedCourses}</p>
+                              <p className="text-sm font-medium text-emerald-700 mb-1">Completed</p>
+                              <p className="text-3xl font-bold text-emerald-900">{completedCourses}</p>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
+                      <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100/50 hover:shadow-xl transition-all duration-300">
                         <CardContent className="pt-6">
                           <div className="flex items-center">
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                              <Tag className="text-green-600" size={24} />
+                            <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
+                              <Award className="text-white" size={26} />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-600">Certificates</p>
-                              <p className="text-2xl font-bold text-gray-900">{certificateCount}</p>
+                              <p className="text-sm font-medium text-purple-700 mb-1">Certificates</p>
+                              <p className="text-3xl font-bold text-purple-900">{certificateCount}</p>
                             </div>
                           </div>
                         </CardContent>
@@ -239,9 +211,12 @@ export default function EmployeeDashboard() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Assigned Courses</CardTitle>
+                      <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                        <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-xl">
+                          <CardTitle className="flex items-center gap-2 text-gray-800">
+                            <Book className="w-5 h-5 text-blue-600" />
+                            Assigned Courses
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
@@ -287,10 +262,10 @@ export default function EmployeeDashboard() {
                       </Card>
 
                       {/* Recent Achievements Section */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Award className="w-5 h-5" />
+                      <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
+                        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-t-xl">
+                          <CardTitle className="flex items-center gap-2 text-gray-800">
+                            <Award className="w-5 h-5 text-emerald-600" />
                             Certificate Status
                           </CardTitle>
                         </CardHeader>
@@ -364,15 +339,13 @@ export default function EmployeeDashboard() {
 
                 {activeSection === "courses" && (
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">My Courses</h2>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {enrollments?.map((enrollment: any) => (
-                        <Card key={enrollment.id}>
+                        <Card key={enrollment.id} className="border-0 shadow-lg bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300 overflow-hidden">
                           <CardContent className="pt-6">
-                            <div className="w-full h-32 bg-gray-200 rounded-lg mb-4 relative overflow-hidden flex items-center justify-center">
-                              <Play className="text-gray-400" size={32} />
-                              <div className="absolute top-2 left-2">
+                            <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl mb-4 relative overflow-hidden flex items-center justify-center">
+                              <Play className="text-blue-600" size={32} />
+                              <div className="absolute top-3 left-3">
                                 <Badge variant={
                                   enrollment.certificateIssued ? "default" : 
                                   enrollment.quizScore && enrollment.quizScore >= 70 ? "default" :
@@ -421,7 +394,6 @@ export default function EmployeeDashboard() {
 
                 {activeSection === "certificates" && (
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">My Certificates</h2>
 
                     <div className="space-y-8">
                       {certificates?.map((cert) => (
@@ -558,14 +530,13 @@ export default function EmployeeDashboard() {
 
                 {activeSection === "profile" && (
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">My Profile</h2>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       <div className="lg:col-span-1">
-                        <Card>
+                        <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
                           <CardContent className="pt-6">
                             <div className="text-center">
-                              <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <div className="w-24 h-24 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
                                 <span className="text-white text-2xl font-bold">
                                   {authData?.user?.name?.substring(0, 2).toUpperCase() || "E"}
                                 </span>
@@ -580,10 +551,10 @@ export default function EmployeeDashboard() {
                         </Card>
 
                         {/* Basic Information Card */}
-                        <Card className="mt-6">
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <User className="w-5 h-5" />
+                        <Card className="mt-6 border-0 shadow-lg bg-white/70 backdrop-blur-sm">
+                          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-xl">
+                            <CardTitle className="flex items-center gap-2 text-gray-800">
+                              <User className="w-5 h-5 text-blue-600" />
                               Basic Information
                             </CardTitle>
                           </CardHeader>
@@ -604,10 +575,10 @@ export default function EmployeeDashboard() {
                         </Card>
 
                         {/* Work Information Card */}
-                        <Card className="mt-6">
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <GraduationCap className="w-5 h-5" />
+                        <Card className="mt-6 border-0 shadow-lg bg-white/70 backdrop-blur-sm">
+                          <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-t-xl">
+                            <CardTitle className="flex items-center gap-2 text-gray-800">
+                              <GraduationCap className="w-5 h-5 text-emerald-600" />
                               Work Information
                             </CardTitle>
                           </CardHeader>
@@ -633,9 +604,12 @@ export default function EmployeeDashboard() {
                       </div>
 
                       <div className="lg:col-span-2">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Training Progress</CardTitle>
+                        <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
+                          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-xl">
+                            <CardTitle className="flex items-center gap-2 text-gray-800">
+                              <BarChart3 className="w-5 h-5 text-purple-600" />
+                              Training Progress
+                            </CardTitle>
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
