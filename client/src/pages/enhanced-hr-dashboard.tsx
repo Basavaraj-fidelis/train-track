@@ -839,21 +839,21 @@ export default function EnhancedHRDashboard() {
                         Client Overview
                       </CardTitle>
                       <CardDescription className="text-gray-600">
-                        Employees and their course assignments by client
+                        Course completion status by client
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         {employees && employees.length > 0 ? (
                           (() => {
-                            // Group employees by client and get their course enrollments
+                            // Group employees by client and get their course enrollments with completion status
                             const clientData = employees.reduce((acc: any, emp: any) => {
                               const client = emp.clientName || "Unassigned";
                               if (!acc[client]) {
                                 acc[client] = {
                                   employeeCount: 0,
                                   employees: [],
-                                  courses: new Set()
+                                  courseStats: new Map() // Map<courseTitle, {completed: number, incomplete: number}>
                                 };
                               }
                               acc[client].employeeCount += 1;
@@ -864,15 +864,26 @@ export default function EnhancedHRDashboard() {
                                 enrollment.userId === emp.id || enrollment.assignedEmail === emp.email
                               ) || [];
                               
-                              // Add course titles to the set
+                              // Process each enrollment to track completion status
                               empEnrollments.forEach((enrollment: any) => {
-                                if (enrollment.course?.title) {
-                                  acc[client].courses.add(enrollment.course.title);
-                                } else {
+                                let courseTitle = enrollment.course?.title;
+                                if (!courseTitle) {
                                   // Find course by courseId if course object is not populated
                                   const course = courses?.find((c: any) => c.id === enrollment.courseId);
-                                  if (course) {
-                                    acc[client].courses.add(course.title);
+                                  courseTitle = course?.title;
+                                }
+                                
+                                if (courseTitle) {
+                                  if (!acc[client].courseStats.has(courseTitle)) {
+                                    acc[client].courseStats.set(courseTitle, { completed: 0, incomplete: 0 });
+                                  }
+                                  
+                                  const stats = acc[client].courseStats.get(courseTitle);
+                                  // Check if course is completed (progress 100% and certificate issued)
+                                  if (enrollment.progress >= 100 && enrollment.certificateIssued) {
+                                    stats.completed += 1;
+                                  } else {
+                                    stats.incomplete += 1;
                                   }
                                 }
                               });
@@ -883,9 +894,9 @@ export default function EnhancedHRDashboard() {
                             return Object.entries(clientData).map(([client, data]: [string, any]) => (
                               <div
                                 key={client}
-                                className="border rounded-lg p-3 bg-gradient-to-r from-green-50/30 to-teal-50/30"
+                                className="border rounded-lg p-4 bg-gradient-to-r from-green-50/30 to-teal-50/30"
                               >
-                                <div className="flex justify-between items-start mb-2">
+                                <div className="flex justify-between items-start mb-3">
                                   <div>
                                     <span className="text-sm font-semibold text-gray-900">
                                       {client}
@@ -895,39 +906,46 @@ export default function EnhancedHRDashboard() {
                                         {data.employeeCount} employee{data.employeeCount !== 1 ? 's' : ''}
                                       </Badge>
                                       <Badge variant="outline" className="text-xs">
-                                        {data.courses.size} course{data.courses.size !== 1 ? 's' : ''}
+                                        {data.courseStats.size} course{data.courseStats.size !== 1 ? 's' : ''}
                                       </Badge>
                                     </div>
                                   </div>
                                 </div>
                                 
-                                {data.courses.size > 0 && (
-                                  <div className="mt-2">
-                                    <p className="text-xs font-medium text-gray-600 mb-1">Assigned Courses:</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {Array.from(data.courses).slice(0, 3).map((courseName: any, index: number) => (
-                                        <Badge 
-                                          key={index} 
-                                          variant="secondary" 
-                                          className="text-xs bg-blue-100 text-blue-700 border-blue-200"
+                                {data.courseStats.size > 0 && (
+                                  <div className="mt-3">
+                                    <p className="text-xs font-medium text-gray-600 mb-2">Course Completion Status:</p>
+                                    <div className="space-y-2">
+                                      {Array.from(data.courseStats.entries()).map(([courseTitle, stats]: [string, any]) => (
+                                        <div 
+                                          key={courseTitle}
+                                          className="flex items-center justify-between bg-white/60 rounded-md p-2 border border-gray-200"
                                         >
-                                          {courseName}
-                                        </Badge>
+                                          <span className="text-xs font-medium text-gray-800 flex-1 mr-2">
+                                            {courseTitle}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                                                {stats.completed}
+                                              </span>
+                                              <span className="text-xs text-green-700">completed</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                                                {stats.incomplete}
+                                              </span>
+                                              <span className="text-xs text-red-700">pending</span>
+                                            </div>
+                                          </div>
+                                        </div>
                                       ))}
-                                      {data.courses.size > 3 && (
-                                        <Badge 
-                                          variant="secondary" 
-                                          className="text-xs bg-gray-100 text-gray-600"
-                                        >
-                                          +{data.courses.size - 3} more
-                                        </Badge>
-                                      )}
                                     </div>
                                   </div>
                                 )}
                                 
-                                {data.courses.size === 0 && (
-                                  <p className="text-xs text-gray-500 mt-1">No courses assigned</p>
+                                {data.courseStats.size === 0 && (
+                                  <p className="text-xs text-gray-500 mt-2">No courses assigned</p>
                                 )}
                               </div>
                             ));
