@@ -396,8 +396,8 @@ export default function EnhancedHRDashboard() {
             <nav className="space-y-1">
               {[
                 { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-                { id: "employees", label: "Employee Directory", icon: Users },
                 { id: "courses", label: "Course Management", icon: Book },
+                { id: "employees", label: "Employee Directory", icon: Users },
                 { id: "performance", label: "Performance Monitor", icon: Activity },
                 { id: "settings", label: "Settings", icon: Settings },
               ].map((item) => (

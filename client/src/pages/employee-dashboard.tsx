@@ -147,13 +147,6 @@ export default function EmployeeDashboard() {
               </li>
             </ul>
           </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button variant="ghost" onClick={logout} className="w-full justify-start">
-              <LogOut size={16} className="mr-3" />
-              Logout
-            </Button>
-          </div>
         </div>
 
         {/* Main Content */}
@@ -175,6 +168,10 @@ export default function EmployeeDashboard() {
                     {authData?.user?.name?.substring(0, 2).toUpperCase() || "E"}
                   </span>
                 </div>
+                <Button variant="ghost" onClick={logout} size="sm" className="flex items-center">
+                  <LogOut size={16} className="mr-2" />
+                  Logout
+                </Button>
               </div>
             </div>
           </header>
