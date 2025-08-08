@@ -838,27 +838,100 @@ export default function EnhancedHRDashboard() {
                         <Users className="w-5 h-5 text-green-600" />
                         Client Overview
                       </CardTitle>
+                      <CardDescription className="text-gray-600">
+                        Employees and their course assignments by client
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {employees && employees.length > 0 ? (
-                          Object.entries(
-                            employees.reduce((acc: any, emp: any) => {
+                          (() => {
+                            // Group employees by client and get their course enrollments
+                            const clientData = employees.reduce((acc: any, emp: any) => {
                               const client = emp.clientName || "Unassigned";
-                              acc[client] = (acc[client] || 0) + 1;
+                              if (!acc[client]) {
+                                acc[client] = {
+                                  employeeCount: 0,
+                                  employees: [],
+                                  courses: new Set()
+                                };
+                              }
+                              acc[client].employeeCount += 1;
+                              acc[client].employees.push(emp);
+                              
+                              // Get enrollments for this employee
+                              const empEnrollments = allEnrollments?.filter((enrollment: any) => 
+                                enrollment.userId === emp.id || enrollment.assignedEmail === emp.email
+                              ) || [];
+                              
+                              // Add course titles to the set
+                              empEnrollments.forEach((enrollment: any) => {
+                                if (enrollment.course?.title) {
+                                  acc[client].courses.add(enrollment.course.title);
+                                } else {
+                                  // Find course by courseId if course object is not populated
+                                  const course = courses?.find((c: any) => c.id === enrollment.courseId);
+                                  if (course) {
+                                    acc[client].courses.add(course.title);
+                                  }
+                                }
+                              });
+                              
                               return acc;
-                            }, {}),
-                          ).map(([client, count]) => (
-                            <div
-                              key={client}
-                              className="flex justify-between items-center"
-                            >
-                              <span className="text-sm font-medium">
-                                {client}
-                              </span>
-                              <Badge variant="secondary">{count}</Badge>
-                            </div>
-                          ))
+                            }, {});
+
+                            return Object.entries(clientData).map(([client, data]: [string, any]) => (
+                              <div
+                                key={client}
+                                className="border rounded-lg p-3 bg-gradient-to-r from-green-50/30 to-teal-50/30"
+                              >
+                                <div className="flex justify-between items-start mb-2">
+                                  <div>
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {client}
+                                    </span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {data.employeeCount} employee{data.employeeCount !== 1 ? 's' : ''}
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {data.courses.size} course{data.courses.size !== 1 ? 's' : ''}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {data.courses.size > 0 && (
+                                  <div className="mt-2">
+                                    <p className="text-xs font-medium text-gray-600 mb-1">Assigned Courses:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {Array.from(data.courses).slice(0, 3).map((courseName: any, index: number) => (
+                                        <Badge 
+                                          key={index} 
+                                          variant="secondary" 
+                                          className="text-xs bg-blue-100 text-blue-700 border-blue-200"
+                                        >
+                                          {courseName}
+                                        </Badge>
+                                      ))}
+                                      {data.courses.size > 3 && (
+                                        <Badge 
+                                          variant="secondary" 
+                                          className="text-xs bg-gray-100 text-gray-600"
+                                        >
+                                          +{data.courses.size - 3} more
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {data.courses.size === 0 && (
+                                  <p className="text-xs text-gray-500 mt-1">No courses assigned</p>
+                                )}
+                              </div>
+                            ));
+                          })()
                         ) : (
                           <div className="text-center py-4 text-gray-500">
                             No client data available
