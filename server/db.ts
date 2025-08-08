@@ -34,11 +34,17 @@ async function ensureSchemaUpdates() {
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
-    
+
     // Add reminders_sent column if it doesn't exist
     await db.execute(sql`
       ALTER TABLE enrollments 
       ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0 NOT NULL
+    `);
+
+    // Update courses table to include youtube_url
+    await db.execute(sql`
+      ALTER TABLE courses 
+      ADD COLUMN IF NOT EXISTS youtube_url TEXT
     `);
 
     console.log('Database schema updates completed successfully');

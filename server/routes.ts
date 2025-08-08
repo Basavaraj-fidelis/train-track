@@ -269,14 +269,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Course creation file:', req.file);
       console.log('Session during course creation:', req.session);
 
-      const { title, description, questions, courseType } = req.body;
+      const { title, description, questions, courseType, youtubeUrl } = req.body;
 
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
       }
 
-      if (!req.file) {
-        return res.status(400).json({ message: "Video file is required" });
+      // If it's not a YouTube URL, expect a video file upload
+      if (!youtubeUrl) {
+        if (!req.file) {
+          return res.status(400).json({ message: "Video file or YouTube URL is required" });
+        }
       }
 
       let parsedQuestions = [];
@@ -289,18 +292,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const courseData = {
+      const courseId = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        duration: 0,
-        createdBy: req.session.userId,
-        videoPath: req.file.filename,
-        questions: parsedQuestions,
-        courseType: courseType || 'one-time'
-      };
+        videoPath: req.file ? req.file.filename : undefined, // Store filename if uploaded
+        youtubeUrl: youtubeUrl ? youtubeUrl : undefined, // Store YouTube URL if provided
+        courseType: courseType || 'one-time',
+        questions: parsedQuestions, // Embed questions directly in course data
+      });
 
-      const course = await storage.createCourse(courseData);
-      res.json(course);
+      // If there are questions, create a separate quiz entry
+      if (parsedQuestions.length > 0) {
+        await storage.addQuizToCourse(courseId, {
+          title: `${title} Quiz`,
+          questions: parsedQuestions,
+          passingScore: 70
+        });
+      }
+
+      res.json({ success: true, courseId });
     } catch (error) {
       console.error('Course creation error:', error);
       res.status(500).json({ 
@@ -312,16 +322,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/courses/:id", requireAdmin, upload.single('video'), async (req, res) => {
     try {
-      const { title, description, questions, courseType } = req.body;
+      const { title, description, questions, courseType, youtubeUrl } = req.body;
       const updateData: any = {
         title,
         description,
-        questions: questions ? JSON.parse(questions) : [],
-        courseType: courseType || 'one-time'
+        courseType: courseType || 'one-time',
       };
 
+      // Handle video upload or YouTube URL update
       if (req.file) {
         updateData.videoPath = req.file.filename;
+        updateData.youtubeUrl = null; // Clear YouTube URL if a file is uploaded
+      } else if (youtubeUrl) {
+        updateData.youtubeUrl = youtubeUrl;
+        updateData.videoPath = null; // Clear video path if a URL is provided
+      }
+
+      // Handle questions update
+      if (questions) {
+        let parsedQuestions = [];
+        try {
+          parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
+        } catch (parseError) {
+          console.error('Error parsing questions:', parseError);
+          return res.status(400).json({ message: "Invalid questions format" });
+        }
+        updateData.questions = parsedQuestions;
+
+        // If questions are updated, update or create the associated quiz
+        if (parsedQuestions.length > 0) {
+          await storage.addQuizToCourse(req.params.id, {
+            title: `${title} Quiz`,
+            questions: parsedQuestions,
+            passingScore: 70
+          });
+        } else {
+          // If questions are cleared, also remove the associated quiz
+          await storage.deleteQuizByCourseId(req.params.id);
+        }
       }
 
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
@@ -381,19 +419,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
-          'Content-Type': 'video/mp4',
+          'Content-Type': 'video/mp4', // Assuming mp4, adjust if needed
         };
         res.writeHead(206, head);
         file.pipe(res);
       } else {
         const head = {
           'Content-Length': fileSize,
-          'Content-Type': 'video/mp4',
+          'Content-Type': 'video/mp4', // Assuming mp4, adjust if needed
         };
         res.writeHead(200, head);
         fs.createReadStream(videoPath).pipe(res);
       }
     } catch (error) {
+      console.error(`Error streaming video ${req.params.filename}:`, error);
       res.status(500).json({ message: "Error streaming video" });
     }
   });
@@ -402,38 +441,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/courses/:courseId/quiz", async (req, res) => {
     try {
       console.log(`Fetching quiz for course: ${req.params.courseId}`);
-      
+
       const course = await storage.getCourse(req.params.courseId);
-      
+
       if (!course) {
         console.log(`Course not found: ${req.params.courseId}`);
         return res.status(404).json({ message: "Course not found" });
       }
-      
+
       console.log(`Course found: ${course.title}, has questions:`, !!course.questions);
-      
+
       // Check if course has questions embedded or separate quiz
       let quiz = await storage.getQuizByCourseId(req.params.courseId);
       console.log('Separate quiz found:', !!quiz);
-      
-      // If no separate quiz exists but course has questions, create quiz from course questions
+
+      // If no separate quiz exists but course has questions, use course questions
       if (!quiz && course.questions && course.questions.length > 0) {
-        console.log(`Creating quiz from course questions (${course.questions.length} questions)`);
+        console.log(`Using embedded questions for course: ${course.title}`);
         quiz = {
-          id: `course-quiz-${course.id}`,
+          id: `course-embedded-quiz-${course.id}`,
           courseId: course.id,
           title: `${course.title} Quiz`,
           questions: course.questions,
-          passingScore: 70,
+          passingScore: 70, // Default passing score
           createdAt: new Date()
         };
       }
-      
+
       if (!quiz) {
         console.log('No quiz or questions found for course');
         return res.status(404).json({ message: "No quiz found for this course" });
       }
-      
+
       console.log(`Returning quiz with ${quiz.questions?.length || 0} questions`);
       res.json(quiz);
     } catch (error) {
@@ -873,7 +912,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = bulkAssignCourseSchema.parse(req.body);
       const enrollments = await storage.bulkAssignCourse(validatedData.courseId, validatedData.userIds);
       res.json({ enrollments, message: `Course assigned to ${validatedData.userIds.length} users successfully` });
-
+    } catch (error) {
+      console.error("Error bulk assigning course:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
 
   // Bulk employee operations for large organizations
   app.post("/api/bulk-import-employees", requireAdmin, async (req, res) => {
@@ -962,13 +1005,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to renew certifications" });
-    }
-  });
-
-
-    } catch (error) {
-      console.error("Error bulk assigning course:", error);
-      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
     }
   });
 
@@ -1182,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/performance-metrics", async (req, res) => {
     try {
       const startTime = Date.now();
-      
+
       // Test database response time
       await storage.getDashboardStats();
       const dbResponseTime = Date.now() - startTime;

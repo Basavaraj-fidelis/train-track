@@ -19,7 +19,7 @@ interface CourseFormData {
   title: string;
   description: string;
   courseType: "recurring" | "one-time";
-  videoFile: File | null;
+  youtubeUrl: string;
   quizQuestions: QuizQuestion[];
 }
 
@@ -67,7 +67,7 @@ export default function CourseCreation() {
     title: "",
     description: "",
     courseType: "one-time",
-    videoFile: null,
+    youtubeUrl: "",
     quizQuestions: [],
   });
 
@@ -78,8 +78,8 @@ export default function CourseCreation() {
       setCourseData({
         title: existingCourse.title || "",
         description: existingCourse.description || "",
-        courseType: existingCourse.courseType || "one-time", // Set courseType from existing data
-        videoFile: null, // Keep null for existing video
+        courseType: existingCourse.courseType || "one-time",
+        youtubeUrl: existingCourse.youtubeUrl || "",
         quizQuestions: existingCourse.questions || [],
       });
     }
@@ -124,11 +124,20 @@ export default function CourseCreation() {
     );
   }
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCourseData((prev) => ({ ...prev, videoFile: file }));
+  const getEmbedUrl = (url: string) => {
+    if (!url) return "";
+    
+    // Extract video ID from various YouTube URL formats
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    
+    if (match && match[2].length === 11) {
+      const videoId = match[2];
+      // Add parameters to hide related videos and controls
+      return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0`;
     }
+    
+    return "";
   };
 
   const addQuestion = () => {
@@ -173,30 +182,36 @@ export default function CourseCreation() {
         throw new Error("Course description is required");
       }
 
-      if (!courseData.videoFile && !isEditing) {
-        throw new Error("Video file is required for new courses");
+      if (!courseData.youtubeUrl?.trim()) {
+        throw new Error("YouTube video URL is required");
+      }
+
+      // Validate YouTube URL format
+      if (!getEmbedUrl(courseData.youtubeUrl)) {
+        throw new Error("Please enter a valid YouTube video URL");
       }
 
       if (courseData.quizQuestions.length === 0) {
         throw new Error("At least one quiz question is required");
       }
 
-      const formData = new FormData();
-      formData.append("title", courseData.title.trim());
-      formData.append("description", courseData.description.trim());
-      formData.append("courseType", courseData.courseType);
-      formData.append("questions", JSON.stringify(courseData.quizQuestions));
-
-      if (courseData.videoFile) {
-        formData.append("video", courseData.videoFile);
-      }
+      const requestData = {
+        title: courseData.title.trim(),
+        description: courseData.description.trim(),
+        courseType: courseData.courseType,
+        youtubeUrl: courseData.youtubeUrl.trim(),
+        questions: courseData.quizQuestions,
+      };
 
       const url = isEditing ? `/api/courses/${editCourseId}` : "/api/courses";
       const method = isEditing ? "PUT" : "POST";
 
       const response = await fetch(url, {
         method,
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
         credentials: "include",
       });
 
@@ -331,45 +346,47 @@ export default function CourseCreation() {
             </CardContent>
           </Card>
 
-          {/* Video Upload */}
+          {/* YouTube Video Link */}
           <Card>
             <CardHeader>
               <CardTitle>Course Video</CardTitle>
             </CardHeader>
             <CardContent>
               <div>
-                <Label htmlFor="video">Course Video {!isEditing && "*"}</Label>
-                <div className="mt-1 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="mt-4">
-                    <Label htmlFor="video-upload" className="cursor-pointer">
-                      <span className="mt-2 block text-sm font-medium text-gray-900">
-                        {courseData.videoFile
-                          ? courseData.videoFile.name
-                          : isEditing && existingCourse?.videoPath
-                            ? `Current: ${existingCourse.videoPath}`
-                            : "Click to upload video"}
-                      </span>
-                    </Label>
-                    <Input
-                      id="video-upload"
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                    />
+                <Label htmlFor="youtube-url">YouTube Video URL {!isEditing && "*"}</Label>
+                <Input
+                  id="youtube-url"
+                  value={courseData.youtubeUrl || ""}
+                  onChange={(e) =>
+                    setCourseData((prev) => ({
+                      ...prev,
+                      youtubeUrl: e.target.value,
+                    }))
+                  }
+                  placeholder="https://www.youtube.com/watch?v=VIDEO_ID"
+                  className="mt-1"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Enter a YouTube video URL. The video will be embedded with related videos and controls hidden for better learning experience.
+                </p>
+                {courseData.youtubeUrl && (
+                  <div className="mt-4 border rounded-lg overflow-hidden">
+                    <div className="bg-gray-100 p-2 text-sm font-medium text-gray-700">
+                      Preview:
+                    </div>
+                    <div className="aspect-video">
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={getEmbedUrl(courseData.youtubeUrl)}
+                        title="Course Video Preview"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      ></iframe>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    MP4, AVI, MOV up to 500MB
-                    {isEditing &&
-                      existingCourse?.videoPath &&
-                      !courseData.videoFile && (
-                        <span className="block text-blue-600 mt-2">
-                          Leave empty to keep current video
-                        </span>
-                      )}
-                  </p>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -508,7 +525,7 @@ export default function CourseCreation() {
                 isSubmitting ||
                 !courseData.title?.trim() ||
                 !courseData.description?.trim() ||
-                (!courseData.videoFile && !isEditing) ||
+                !courseData.youtubeUrl?.trim() ||
                 courseData.quizQuestions.length === 0
               }
               className="bg-green-600 hover:bg-green-700"

@@ -19,6 +19,19 @@ import {
 import { eq, and, sql, desc, asc, isNull, or, lt, gte, count, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
+import { v4 as uuidv4 } from 'uuid';
+
+// Define the interface for course creation data, now including youtubeUrl
+interface CreateCourseData {
+  title: string;
+  description: string;
+  youtubeUrl: string; // Changed from videoPath
+  courseType?: 'one-time' | 'recurring';
+  duration?: number;
+  createdBy: string;
+  defaultDeadlineDays?: number;
+  reminderDays?: number;
+}
 
 export class Storage {
   // User management
@@ -90,11 +103,11 @@ export class Storage {
   }
 
   // Course management
-  async createCourse(courseData: InsertCourse & { questions?: any[]; courseType?: string }): Promise<Course> {
+  async createCourse(courseData: InsertCourse & { questions?: any[]; courseType?: string, youtubeUrl?: string }): Promise<Course> {
     const courseToInsert: InsertCourse = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.videoPath,
+      videoPath: courseData.youtubeUrl, // Use youtubeUrl here
       duration: courseData.duration || 0,
       createdBy: courseData.createdBy,
       courseType: courseData.courseType as "recurring" | "one-time" || "one-time",
@@ -126,9 +139,15 @@ export class Storage {
     return db.select().from(courses).where(eq(courses.isActive, true)).orderBy(desc(courses.createdAt));
   }
 
-  async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[] }>): Promise<Course | null> {
+  async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[]; youtubeUrl?: string }>): Promise<Course | null> {
     const updateData: Partial<InsertCourse> = { ...courseData };
+    // Ensure youtubeUrl is mapped to videoPath for the database update
+    if (courseData.youtubeUrl !== undefined) {
+      updateData.videoPath = courseData.youtubeUrl;
+      delete updateData.youtubeUrl; // Remove from the set of fields to update if it's not a direct column
+    }
     delete (updateData as any).questions;
+
 
     const [updatedCourse] = await db
       .update(courses)
@@ -310,7 +329,7 @@ export class Storage {
           title: courses.title,
           description: courses.description,
           duration: courses.duration,
-          videoPath: courses.videoPath,
+          videoPath: courses.videoPath, // This will now contain the YouTube URL
           courseType: courses.courseType,
           renewalPeriodMonths: courses.renewalPeriodMonths,
         },
@@ -598,11 +617,11 @@ export class Storage {
 
     for (const employee of employees) {
       const enrollments = await this.getUserEnrollments(employee.id);
-      const complianceEnrollments = enrollments.filter(e => 
+      const complianceEnrollments = enrollments.filter(e =>
         complianceCourses.some(c => c.id === e.course.id)
       );
 
-      const compliantCount = complianceEnrollments.filter(e => 
+      const compliantCount = complianceEnrollments.filter(e =>
         e.certificateIssued && (!e.isExpired || e.course.courseType === 'one-time')
       ).length;
 
@@ -617,7 +636,7 @@ export class Storage {
 
     return {
       employees: complianceData,
-      overallComplianceRate: complianceData.length > 0 
+      overallComplianceRate: complianceData.length > 0
         ? Math.round(complianceData.reduce((sum, emp) => sum + emp.complianceRate, 0) / complianceData.length)
         : 100,
     };
