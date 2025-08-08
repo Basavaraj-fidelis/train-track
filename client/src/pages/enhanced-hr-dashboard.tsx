@@ -562,10 +562,10 @@ export default function EnhancedHRDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex space-x-8">
+        <div className="flex gap-8">
           {/* Sidebar */}
-          <div className="w-64 space-y-2">
-            <nav className="space-y-1">
+          <div className="w-64 flex-shrink-0">
+            <nav className="space-y-2">
               {[
                 { id: "dashboard", label: "Dashboard", icon: BarChart3 },
                 { id: "courses", label: "Course Management", icon: Book },
@@ -580,13 +580,13 @@ export default function EnhancedHRDashboard() {
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                     activeSection === item.id
                       ? "bg-primary text-primary-foreground"
                       : "text-gray-600 hover:bg-gray-100"
                   }`}
                 >
-                  <item.icon size={16} className="mr-3" />
+                  <item.icon size={16} className="mr-3 flex-shrink-0" />
                   {item.label}
                 </button>
               ))}
@@ -1042,7 +1042,7 @@ export default function EnhancedHRDashboard() {
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary">
-                                {allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0} enrolled
+                                {allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0}
                               </Badge>
                             </TableCell>
                             <TableCell>
