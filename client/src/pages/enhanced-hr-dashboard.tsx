@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -25,7 +25,9 @@ import {
   Eye,
   Target,
   Mail,
-  Activity // Added Activity icon import
+  Activity, // Added Activity icon import
+  Calendar,
+  PlayCircle,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,6 +65,15 @@ export default function EnhancedHRDashboard() {
   const [selectedUserEnrollments, setSelectedUserEnrollments] = useState<any>(null);
   const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
   const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
+  const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
+  const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
+
+  // Mock enrollments data for display purposes (replace with actual API call if needed)
+  const enrollments = {
+    "course-1": 15,
+    "course-2": 8,
+    "course-3": 22,
+  };
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,6 +89,16 @@ export default function EnhancedHRDashboard() {
       clientName: "",
       phoneNumber: "",
       password: ""
+    }
+  });
+
+  // Course form for add/edit
+  const courseForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      videoPath: "",
+      duration: 0,
     }
   });
 
@@ -251,9 +272,30 @@ export default function EnhancedHRDashboard() {
     setBulkAssignCourseOpen(true);
   };
 
+  // Fix course editing logic
   const handleEditCourse = (course: any) => {
-    setLocation(`/create-course?edit=${course.id}`);
+    // Check if course has enrolled students
+    const hasEnrollments = enrollments?.[course.id] && enrollments[course.id] > 0;
+
+    if (hasEnrollments) {
+      toast({
+        title: "Cannot Edit Course",
+        description: "This course cannot be edited as it has been assigned to employees.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditingCourse(course);
+    courseForm.reset({
+      title: course.title,
+      description: course.description,
+      videoPath: course.videoPath,
+      duration: course.duration,
+    });
+    setAddCourseOpen(true);
   };
+
 
   const handleDeleteCourse = async (courseId: string) => {
     if (confirm('Are you sure you want to delete this course?')) {
@@ -724,88 +766,70 @@ export default function EnhancedHRDashboard() {
                   </div>
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Course List</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {courses?.map((course: any) => (
-                        <div key={course.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex items-center">
-                            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
-                              <BookOpen className="text-primary" size={20} />
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">{course.title}</div>
-                              <p className="text-gray-600 text-sm mb-4 truncate">{course.description}</p>
-                              <div className="text-sm text-gray-500">
-                                {course.duration ? `${course.duration} minutes` : "Duration not set"}
-                              </div>
-                            </div>
+                {/* Fix course management display layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {courses?.map((course) => (
+                    <Card key={course.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-lg leading-tight">{course.title}</span>
+                          <Badge variant="secondary" className="shrink-0">
+                            {enrollments?.[course.id] || 0} enrolled
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600 line-clamp-3">
+                          {course.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="py-3">
+                        <div className="space-y-3">
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Calendar className="w-4 h-4 mr-2 shrink-0" />
+                            <span>Created: {new Date(course.createdAt).toLocaleDateString()}</span>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={course.isActive ? "default" : "secondary"}>
-                              {course.isActive ? "Active" : "Inactive"}
-                            </Badge>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedCourse(course);
-                                setEmailAssignmentOpen(true);
-                              }}
-                            >
-                              <Mail className="w-4 h-4 mr-1" />
-                              Assign via Email
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedCourse(course);
-                                setAssignmentsTrackerOpen(true);
-                              }}
-                            >
-                              <BarChart3 className="w-4 h-4 mr-1" />
-                              Track Progress
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditCourse(course)}
-                            >
-                              <Edit size={16} className="mr-1" />
-                              Edit
-                            </Button>
-                            {/* Add View Assignments button to courses table */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedCourseEnrollments(course)}
-                            >
-                              <Eye size={16} className="mr-1" />
-                              View Assignments
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteCourse(course.id)}
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          </div>
+                          {course.videoPath && (
+                            <div className="flex items-center text-sm text-emerald-600">
+                              <PlayCircle className="w-4 h-4 mr-2 shrink-0" />
+                              <span>Video content available</span>
+                            </div>
+                          )}
+                          {enrollments?.[course.id] && enrollments[course.id] > 0 && (
+                            <div className="flex items-center text-sm text-blue-600">
+                              <Users className="w-4 h-4 mr-2 shrink-0" />
+                              <span>Currently assigned to employees</span>
+                            </div>
+                          )}
                         </div>
-                      ))}
-                      {(!courses || courses.length === 0) && (
-                        <div className="text-center py-8 text-gray-500">
-                          No courses found. Create your first course to get started.
-                        </div>
-                      )}
+                      </CardContent>
+                      <CardFooter className="flex justify-between pt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditCourse(course)}
+                          disabled={!!(enrollments?.[course.id] && enrollments[course.id] > 0)}
+                          className="flex items-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          {enrollments?.[course.id] && enrollments[course.id] > 0 ? 'Assigned' : 'Edit'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteCourse(course.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                  {(!courses || courses.length === 0) && (
+                    <div className="text-center py-8 text-gray-500">
+                      No courses found. Create your first course to get started.
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1016,6 +1040,96 @@ export default function EnhancedHRDashboard() {
           initialData={editingEmployee}
           mode="edit"
         />
+      </Dialog>
+
+      {/* Course Creation/Editing Dialog */}
+      <Dialog open={addCourseOpen} onOpenChange={setAddCourseOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingCourse ? "Edit Course" : "Create New Course"}</DialogTitle>
+            <DialogDescription>
+              Fill in the details for the course.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={courseForm.handleSubmit(async (data) => {
+              if (editingCourse) {
+                // Logic to update course
+                try {
+                  await apiRequest('PUT', `/api/courses/${editingCourse.id}`, data);
+                  queryClient.refetchQueries({ queryKey: ["/api/courses"] });
+                  toast({ title: "Success", description: "Course updated successfully." });
+                  setAddCourseOpen(false);
+                  setEditingCourse(null);
+                } catch (error) {
+                  toast({ title: "Error", description: "Failed to update course.", variant: "destructive" });
+                }
+              } else {
+                // Logic to create course
+                try {
+                  await apiRequest('POST', '/api/courses', data);
+                  queryClient.refetchQueries({ queryKey: ["/api/courses"] });
+                  toast({ title: "Success", description: "Course created successfully." });
+                  setAddCourseOpen(false);
+                } catch (error) {
+                  toast({ title: "Error", description: "Failed to create course.", variant: "destructive" });
+                }
+              }
+            })}
+          >
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="title" className="text-right font-medium">
+                  Title
+                </label>
+                <input
+                  id="title"
+                  {...courseForm.register("title")}
+                  className="col-span-3 border rounded-md p-2"
+                  placeholder="Course Title"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="description" className="text-right font-medium">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  {...courseForm.register("description")}
+                  className="col-span-3 border rounded-md p-2"
+                  placeholder="Course Description"
+                  rows={3}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="videoPath" className="text-right font-medium">
+                  Video URL
+                </label>
+                <input
+                  id="videoPath"
+                  {...courseForm.register("videoPath")}
+                  className="col-span-3 border rounded-md p-2"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="duration" className="text-right font-medium">
+                  Duration (mins)
+                </label>
+                <input
+                  id="duration"
+                  type="number"
+                  {...courseForm.register("duration", { valueAsNumber: true })}
+                  className="col-span-3 border rounded-md p-2"
+                  placeholder="e.g., 30"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">{editingCourse ? "Update Course" : "Create Course"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
       </Dialog>
 
       <BulkAssignCourseDialog

@@ -240,6 +240,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   ref={videoRef}
                   className="w-full h-full object-cover rounded-lg"
                   controls
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  disablePictureInPicture
                   onError={(e) => {
                     console.error('Video error:', e);
                     setError('Unable to load video. Please contact your administrator.');
