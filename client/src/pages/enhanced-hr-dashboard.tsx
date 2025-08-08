@@ -97,14 +97,19 @@ export default function EnhancedHRDashboard() {
   const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
   const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Check authentication
+  const { data: authData, isLoading: authLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+  });
+
   // Real enrollments data
   const { data: allEnrollments } = useQuery({
     queryKey: ["/api/enrollments"],
     enabled: !!authData?.user,
   });
-
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Employee form for add/edit
   const employeeForm = useForm({
@@ -128,11 +133,6 @@ export default function EnhancedHRDashboard() {
       videoPath: "",
       duration: 0,
     },
-  });
-
-  // Check authentication
-  const { data: authData, isLoading: authLoading } = useQuery({
-    queryKey: ["/api/auth/me"],
   });
 
   useEffect(() => {
