@@ -268,7 +268,7 @@ export class Storage {
   async addQuizToCourse(courseId: string, quizData: Omit<InsertQuiz, 'courseId'>): Promise<Quiz> {
     // Check if a quiz already exists for this course
     const existingQuiz = await this.getQuizByCourseId(courseId);
-    
+
     if (existingQuiz) {
       // Update existing quiz
       const updatedQuiz = await this.updateQuiz(existingQuiz.id, {

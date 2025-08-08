@@ -73,15 +73,38 @@ export default function CourseAccess() {
     },
   });
 
+  const loginExistingUserMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/auth/employee-login", {
+        email: accessData.enrollment.assignedEmail,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Welcome back!",
+        description: "You can now access your courses",
+      });
+      setLocation("/employee-dashboard");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Login failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   useEffect(() => {
     if (accessData) {
       setIsFirstTime(accessData.isFirstTime);
-      if (!accessData.isFirstTime) {
-        // User already has an account, redirect to employee dashboard
-        setLocation("/employee-dashboard");
+      if (!accessData.isFirstTime && accessData.existingUser) {
+        // User already exists, automatically log them in
+        loginExistingUserMutation.mutate();
       }
     }
-  }, [accessData, setLocation]);
+  }, [accessData]);
 
   const onSubmit = (data: ProfileForm) => {
     completeProfileMutation.mutate(data);
@@ -266,10 +289,18 @@ export default function CourseAccess() {
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome Back!</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Welcome Back, {accessData?.existingUser?.name}!
+              </h2>
               <p className="text-gray-600 mb-4">
-                You already have an account. Redirecting to your dashboard...
+                You've been assigned a new course. Logging you in automatically...
               </p>
+              {course && (
+                <div className="bg-blue-50 p-4 rounded-lg mt-4">
+                  <h3 className="font-bold text-blue-800">{course.title}</h3>
+                  <p className="text-blue-600 text-sm">{course.description}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

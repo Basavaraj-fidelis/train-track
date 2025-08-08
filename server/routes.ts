@@ -1092,10 +1092,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const course = await storage.getCourse(enrollment.courseId);
+      
+      // Check if user already exists by email
+      let existingUser = null;
+      if (enrollment.assignedEmail) {
+        existingUser = await storage.getUserByEmail(enrollment.assignedEmail);
+      }
+
+      // If user exists but enrollment is not linked, link it
+      if (existingUser && !enrollment.userId) {
+        await storage.updateEnrollment(enrollment.id, {
+          userId: existingUser.id,
+          status: "accessed"
+        });
+      }
+
       res.json({ 
         enrollment, 
         course,
-        isFirstTime: !enrollment.userId 
+        existingUser,
+        isFirstTime: !existingUser // Only first time if no existing user found
       });
     } catch (error) {
       console.error("Error accessing course:", error);
