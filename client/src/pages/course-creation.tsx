@@ -133,8 +133,8 @@ export default function CourseCreation() {
     
     if (match && match[2].length === 11) {
       const videoId = match[2];
-      // Add parameters to hide related videos and controls
-      return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0`;
+      // Add parameters to hide related videos, controls, title and share options
+      return `https://www.youtube.com/embed/${videoId}?rel=0&controls=0&showinfo=0&modestbranding=1`;
     }
     
     return "";
