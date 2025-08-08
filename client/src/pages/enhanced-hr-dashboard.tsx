@@ -1047,7 +1047,8 @@ export default function EnhancedHRDashboard() {
                         No courses found. Create your first course to get started.
                       </div>
                     )}
-                </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
