@@ -247,14 +247,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/employees/:id", requireAdmin, async (req, res) => {
     try {
+      // Check if employee has any enrollments or certificates
+      const enrollments = await storage.getUserEnrollments(req.params.id);
+      
+      if (enrollments.length > 0) {
+        return res.status(400).json({ 
+          message: "Cannot delete employee with active course enrollments. Please remove enrollments first." 
+        });
+      }
+
       const success = await storage.deleteUser(req.params.id);
       if (success) {
         res.json({ success: true });
       } else {
         res.status(404).json({ message: "Employee not found" });
       }
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete employee" });
+    } catch (error: any) {
+      console.error('Employee deletion error:', error);
+      res.status(500).json({ 
+        message: "Failed to delete employee",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 

@@ -44,6 +44,7 @@ import {
   Activity, // Added Activity icon import
   Calendar,
   PlayCircle,
+  FileText,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -96,12 +97,11 @@ export default function EnhancedHRDashboard() {
   const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
   const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
 
-  // Mock enrollments data for display purposes (replace with actual API call if needed)
-  const enrollments = {
-    "course-1": 15,
-    "course-2": 8,
-    "course-3": 22,
-  };
+  // Real enrollments data
+  const { data: allEnrollments } = useQuery({
+    queryKey: ["/api/enrollments"],
+    enabled: !!authData?.user,
+  });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -327,10 +327,9 @@ export default function EnhancedHRDashboard() {
   // Fix course editing logic
   const handleEditCourse = (course: any) => {
     // Check if course has enrolled students
-    const hasEnrollments =
-      enrollments?.[course.id] && enrollments[course.id] > 0;
+    const enrollmentCount = allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0;
 
-    if (hasEnrollments) {
+    if (enrollmentCount > 0) {
       toast({
         title: "Cannot Edit Course",
         description:
@@ -462,6 +461,71 @@ export default function EnhancedHRDashboard() {
     a.download = "employees.csv";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadCourseReport = async (courseId: string, courseName: string) => {
+    try {
+      const response = await apiRequest("GET", `/api/course-assignments/${courseId}`);
+      const assignments = await response.json();
+
+      if (!assignments || assignments.length === 0) {
+        toast({
+          title: "No data",
+          description: "No assignments found for this course.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create CSV content
+      const csvContent = [
+        [
+          "Email",
+          "User Name",
+          "Assigned Date",
+          "Deadline",
+          "Status",
+          "Progress %",
+          "Quiz Score",
+          "Certificate Issued",
+          "Reminders Sent",
+          "Last Accessed",
+        ],
+        ...assignments.map((assignment: any) => [
+          assignment.assignedEmail || assignment.user?.email || "",
+          assignment.user?.name || "Not registered",
+          assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A",
+          assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A",
+          assignment.completedAt ? "Completed" : assignment.status === "expired" ? "Expired" : assignment.userId ? "In Progress" : "Email Sent",
+          assignment.progress || 0,
+          assignment.quizScore || "Not taken",
+          assignment.certificateIssued ? "Yes" : "No",
+          assignment.remindersSent || 0,
+          assignment.lastAccessedAt ? new Date(assignment.lastAccessedAt).toLocaleDateString() : "Never",
+        ]),
+      ]
+        .map((row) => row.join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `course-report-${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Report Downloaded",
+        description: `Course assignment report for "${courseName}" has been downloaded.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download course report.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (authLoading) {
@@ -677,53 +741,60 @@ export default function EnhancedHRDashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Course Enrollment Statistics</CardTitle>
+                      <CardTitle>Training Progress Overview</CardTitle>
+                      <CardDescription>
+                        Key metrics showing training effectiveness and engagement
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">
-                            Completion Rate
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0
-                              ? Math.round(
-                                  ((stats?.certificatesIssued || 0) /
-                                    stats.totalEmployees) *
-                                    100,
-                                )
-                              : 0}
-                            %
-                          </span>
+                          <div>
+                            <span className="text-sm font-medium">Course Completion Rate</span>
+                            <p className="text-xs text-gray-500">Employees who completed assigned courses</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-green-600">
+                              {stats?.totalEmployees > 0 && stats?.certificatesIssued > 0
+                                ? Math.round(
+                                    ((stats.certificatesIssued) /
+                                      (stats.pendingAssignments + stats.certificatesIssued)) *
+                                      100,
+                                  )
+                                : 0}%
+                            </span>
+                          </div>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">
-                            Average Courses per Employee
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0
-                              ? Math.round(
-                                  ((stats?.pendingAssignments || 0) /
-                                    stats.totalEmployees) *
-                                    10,
-                                ) / 10
-                              : 0}
-                          </span>
+                          <div>
+                            <span className="text-sm font-medium">Active Learners</span>
+                            <p className="text-xs text-gray-500">Employees currently taking courses</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-blue-600">
+                              {stats?.pendingAssignments || 0}
+                            </span>
+                            <p className="text-xs text-gray-500">
+                              of {stats?.totalEmployees || 0} employees
+                            </p>
+                          </div>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">
-                            Active Enrollment Rate
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0
-                              ? Math.round(
-                                  ((stats?.pendingAssignments || 0) /
-                                    stats.totalEmployees) *
-                                    100,
-                                )
-                              : 0}
-                            %
-                          </span>
+                          <div>
+                            <span className="text-sm font-medium">Training Engagement</span>
+                            <p className="text-xs text-gray-500">% of employees with course assignments</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-purple-600">
+                              {stats?.totalEmployees > 0
+                                ? Math.round(
+                                    (((stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0)) /
+                                      stats.totalEmployees) *
+                                      100,
+                                  )
+                                : 0}%
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -971,7 +1042,7 @@ export default function EnhancedHRDashboard() {
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary">
-                                {enrollments?.[course.id] || 0} enrolled
+                                {allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0} enrolled
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -991,6 +1062,14 @@ export default function EnhancedHRDashboard() {
                                   title="View assigned users"
                                 >
                                   <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadCourseReport(course.id, course.title)}
+                                  title="Download assignment report"
+                                >
+                                  <FileText className="w-4 h-4" />
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1019,10 +1098,7 @@ export default function EnhancedHRDashboard() {
                                   size="sm"
                                   onClick={() => handleEditCourse(course)}
                                   disabled={
-                                    !!(
-                                      enrollments?.[course.id] &&
-                                      enrollments[course.id] > 0
-                                    )
+                                    (allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0) > 0
                                   }
                                   title="Edit course"
                                 >
