@@ -1051,7 +1051,7 @@ export default function EnhancedHRDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-2 flex-wrap">
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1059,9 +1059,10 @@ export default function EnhancedHRDashboard() {
                                     setSelectedCourse(course);
                                     setSelectedCourseEnrollments(course);
                                   }}
-                                  title="View assigned users"
+                                  className="flex items-center gap-1"
                                 >
                                   <Eye className="w-4 h-4" />
+                                  View Users
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1078,9 +1079,10 @@ export default function EnhancedHRDashboard() {
                                     setSelectedCourse(course);
                                     setEmailAssignmentOpen(true);
                                   }}
-                                  title="Assign via email"
+                                  className="flex items-center gap-1"
                                 >
                                   <Mail className="w-4 h-4" />
+                                  Assign Email
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1089,9 +1091,10 @@ export default function EnhancedHRDashboard() {
                                     setSelectedCourse(course);
                                     setAssignmentsTrackerOpen(true);
                                   }}
-                                  title="Track assignments"
+                                  className="flex items-center gap-1"
                                 >
                                   <Target className="w-4 h-4" />
+                                  Track
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -1108,9 +1111,10 @@ export default function EnhancedHRDashboard() {
                                   variant="destructive"
                                   size="sm"
                                   onClick={() => handleDeleteCourse(course.id)}
-                                  title="Delete course"
+                                  className="flex items-center gap-1"
                                 >
                                   <Trash2 className="w-4 h-4" />
+                                  Delete
                                 </Button>
                               </div>
                             </TableCell>
