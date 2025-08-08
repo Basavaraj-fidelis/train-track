@@ -1952,7 +1952,8 @@ export default function EnhancedHRDashboard() {
               Confirm Delete
             </Button>
           </DialogFooter>
-        </Dialog>
-      </div>
+        </DialogContent>
+      </Dialog>
+    </div>
     );
   };
