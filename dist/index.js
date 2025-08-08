@@ -238,6 +238,10 @@ async function ensureSchemaUpdates() {
       ALTER TABLE enrollments 
       ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0 NOT NULL
     `);
+    await db.execute(sql2`
+      ALTER TABLE courses 
+      ADD COLUMN IF NOT EXISTS youtube_url TEXT
+    `);
     console.log("Database schema updates completed successfully");
   } catch (error) {
     console.error("Schema update error:", error);
@@ -298,9 +302,10 @@ var Storage = class {
     const courseToInsert = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.videoPath,
+      videoPath: courseData.youtubeUrl || courseData.videoPath,
+      // Store YouTube URL or video file path
       duration: courseData.duration || 0,
-      createdBy: courseData.createdBy,
+      createdBy: courseData.createdBy || "admin",
       courseType: courseData.courseType || "one-time",
       defaultDeadlineDays: courseData.defaultDeadlineDays || 30,
       reminderDays: courseData.reminderDays || 7
@@ -325,6 +330,10 @@ var Storage = class {
   }
   async updateCourse(id, courseData) {
     const updateData = { ...courseData };
+    if (courseData.youtubeUrl !== void 0) {
+      updateData.videoPath = courseData.youtubeUrl;
+      delete updateData.youtubeUrl;
+    }
     delete updateData.questions;
     const [updatedCourse] = await db.update(courses).set(updateData).where(eq(courses.id, id)).returning();
     if (courseData.questions) {
@@ -401,6 +410,25 @@ var Storage = class {
     const result = await db.delete(quizzes).where(eq(quizzes.id, id));
     return result.rowCount > 0;
   }
+  async deleteQuizByCourseId(courseId) {
+    const result = await db.delete(quizzes).where(eq(quizzes.courseId, courseId));
+    return result.rowCount > 0;
+  }
+  async addQuizToCourse(courseId, quizData) {
+    const existingQuiz = await this.getQuizByCourseId(courseId);
+    if (existingQuiz) {
+      const updatedQuiz = await this.updateQuiz(existingQuiz.id, {
+        ...quizData,
+        courseId
+      });
+      return updatedQuiz;
+    } else {
+      return this.createQuiz({
+        ...quizData,
+        courseId
+      });
+    }
+  }
   // Enrollment management
   async createEnrollment(enrollmentData) {
     if (enrollmentData.assignedEmail && !enrollmentData.userId) {
@@ -447,6 +475,9 @@ var Storage = class {
         description: courses.description,
         duration: courses.duration,
         videoPath: courses.videoPath,
+        // This contains either YouTube URL or video file path
+        youtubeUrl: courses.videoPath,
+        // Alias for compatibility
         courseType: courses.courseType,
         renewalPeriodMonths: courses.renewalPeriodMonths
       }
@@ -908,6 +939,17 @@ async function registerRoutes(app2) {
       console.log("Admin access denied - Session:", req.session);
       return res.status(403).json({ message: "Admin access required" });
     }
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.role !== "admin") {
+        console.log("User not found or not admin - destroying session");
+        req.session.destroy();
+        return res.status(403).json({ message: "Admin access required" });
+      }
+    } catch (error) {
+      console.error("Error verifying admin user:", error);
+      return res.status(500).json({ message: "Authentication error" });
+    }
     next();
   };
   const requireAuth = async (req, res, next) => {
@@ -990,33 +1032,39 @@ async function registerRoutes(app2) {
       console.log("Course creation request body:", req.body);
       console.log("Course creation file:", req.file);
       console.log("Session during course creation:", req.session);
-      const { title, description, questions, courseType } = req.body;
+      const { title, description, questions, courseType, youtubeUrl } = req.body;
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
       }
-      if (!req.file) {
-        return res.status(400).json({ message: "Video file is required" });
+      if (!youtubeUrl && !req.file) {
+        return res.status(400).json({ message: "Video file or YouTube URL is required" });
       }
       let parsedQuestions = [];
       if (questions) {
         try {
-          parsedQuestions = JSON.parse(questions);
+          parsedQuestions = typeof questions === "string" ? JSON.parse(questions) : questions;
         } catch (parseError) {
           console.error("Error parsing questions:", parseError);
           return res.status(400).json({ message: "Invalid questions format" });
         }
       }
-      const courseData = {
+      const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        duration: 0,
+        videoPath: req.file ? req.file.filename : void 0,
+        youtubeUrl: youtubeUrl ? youtubeUrl.trim() : void 0,
+        courseType: courseType || "one-time",
         createdBy: req.session.userId,
-        videoPath: req.file.filename,
-        questions: parsedQuestions,
-        courseType: courseType || "one-time"
-      };
-      const course = await storage.createCourse(courseData);
-      res.json(course);
+        questions: parsedQuestions
+      });
+      if (parsedQuestions.length > 0) {
+        await storage.addQuizToCourse(course.id, {
+          title: `${title} Quiz`,
+          questions: parsedQuestions,
+          passingScore: 70
+        });
+      }
+      res.json({ success: true, course });
     } catch (error) {
       console.error("Course creation error:", error);
       res.status(500).json({
@@ -1027,15 +1075,37 @@ async function registerRoutes(app2) {
   });
   app2.put("/api/courses/:id", requireAdmin, upload.single("video"), async (req, res) => {
     try {
-      const { title, description, questions, courseType } = req.body;
+      const { title, description, questions, courseType, youtubeUrl } = req.body;
       const updateData = {
         title,
         description,
-        questions: questions ? JSON.parse(questions) : [],
         courseType: courseType || "one-time"
       };
       if (req.file) {
         updateData.videoPath = req.file.filename;
+        updateData.youtubeUrl = null;
+      } else if (youtubeUrl) {
+        updateData.youtubeUrl = youtubeUrl;
+        updateData.videoPath = null;
+      }
+      if (questions) {
+        let parsedQuestions = [];
+        try {
+          parsedQuestions = typeof questions === "string" ? JSON.parse(questions) : questions;
+        } catch (parseError) {
+          console.error("Error parsing questions:", parseError);
+          return res.status(400).json({ message: "Invalid questions format" });
+        }
+        updateData.questions = parsedQuestions;
+        if (parsedQuestions.length > 0) {
+          await storage.addQuizToCourse(req.params.id, {
+            title: `${title} Quiz`,
+            questions: parsedQuestions,
+            passingScore: 70
+          });
+        } else {
+          await storage.deleteQuizByCourseId(req.params.id);
+        }
       }
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
       res.json(updatedCourse);
@@ -1087,6 +1157,7 @@ async function registerRoutes(app2) {
           "Accept-Ranges": "bytes",
           "Content-Length": chunksize,
           "Content-Type": "video/mp4"
+          // Assuming mp4, adjust if needed
         };
         res.writeHead(206, head);
         file.pipe(res);
@@ -1094,11 +1165,13 @@ async function registerRoutes(app2) {
         const head = {
           "Content-Length": fileSize,
           "Content-Type": "video/mp4"
+          // Assuming mp4, adjust if needed
         };
         res.writeHead(200, head);
         fs.createReadStream(videoPath).pipe(res);
       }
     } catch (error) {
+      console.error(`Error streaming video ${req.params.filename}:`, error);
       res.status(500).json({ message: "Error streaming video" });
     }
   });
@@ -1114,13 +1187,14 @@ async function registerRoutes(app2) {
       let quiz = await storage.getQuizByCourseId(req.params.courseId);
       console.log("Separate quiz found:", !!quiz);
       if (!quiz && course.questions && course.questions.length > 0) {
-        console.log(`Creating quiz from course questions (${course.questions.length} questions)`);
+        console.log(`Using embedded questions for course: ${course.title}`);
         quiz = {
-          id: `course-quiz-${course.id}`,
+          id: `course-embedded-quiz-${course.id}`,
           courseId: course.id,
           title: `${course.title} Quiz`,
           questions: course.questions,
           passingScore: 70,
+          // Default passing score
           createdAt: /* @__PURE__ */ new Date()
         };
       }
@@ -1498,82 +1572,82 @@ async function registerRoutes(app2) {
       const validatedData = bulkAssignCourseSchema.parse(req.body);
       const enrollments2 = await storage.bulkAssignCourse(validatedData.courseId, validatedData.userIds);
       res.json({ enrollments: enrollments2, message: `Course assigned to ${validatedData.userIds.length} users successfully` });
-      app2.post("/api/bulk-import-employees", requireAdmin, async (req2, res2) => {
-        try {
-          const { employees } = req2.body;
-          if (!Array.isArray(employees) || employees.length === 0) {
-            return res2.status(400).json({ message: "Employee data array is required" });
-          }
-          const results = {
-            created: 0,
-            updated: 0,
-            errors: []
-          };
-          for (const empData of employees) {
-            try {
-              const existingUser = await storage.getUserByEmail(empData.email) || await storage.getUserByEmployeeId(empData.employeeId);
-              if (existingUser) {
-                await storage.updateUser(existingUser.id, {
-                  ...empData,
-                  role: "employee",
-                  isActive: empData.isActive !== false
-                  // Default to active
-                });
-                results.updated++;
-              } else {
-                await storage.createUser({
-                  ...empData,
-                  role: "employee",
-                  password: empData.password || await bcrypt2.hash(`temp${Date.now()}`, 10),
-                  isActive: empData.isActive !== false
-                });
-                results.created++;
-                await storage.autoEnrollInComplianceCourses(empData.employeeId || empData.email);
-              }
-            } catch (error) {
-              results.errors.push({
-                employee: empData.email || empData.employeeId,
-                error: error.message
-              });
-            }
-          }
-          res2.json(results);
-        } catch (error) {
-          res2.status(500).json({ message: "Bulk import failed", error: error.message });
-        }
-      });
-      app2.post("/api/deactivate-employees", requireAdmin, async (req2, res2) => {
-        try {
-          const { employeeIds } = req2.body;
-          const results = await storage.deactivateEmployees(employeeIds);
-          res2.json({ message: `Deactivated ${results} employees successfully` });
-        } catch (error) {
-          res2.status(500).json({ message: "Failed to deactivate employees" });
-        }
-      });
-      app2.get("/api/compliance-status", requireAdmin, async (req2, res2) => {
-        try {
-          const complianceReport = await storage.getComplianceReport();
-          res2.json(complianceReport);
-        } catch (error) {
-          res2.status(500).json({ message: "Failed to generate compliance report" });
-        }
-      });
-      app2.post("/api/renew-expired-certifications", requireAdmin, async (req2, res2) => {
-        try {
-          const { courseId, userIds } = req2.body;
-          const renewedEnrollments = await storage.renewExpiredCertifications(courseId, userIds);
-          res2.json({
-            message: `Renewed ${renewedEnrollments.length} certifications`,
-            renewedEnrollments
-          });
-        } catch (error) {
-          res2.status(500).json({ message: "Failed to renew certifications" });
-        }
-      });
     } catch (error) {
       console.error("Error bulk assigning course:", error);
       res.status(400).json({ message: error instanceof Error ? error.message : "Invalid data" });
+    }
+  });
+  app2.post("/api/bulk-import-employees", requireAdmin, async (req, res) => {
+    try {
+      const { employees } = req.body;
+      if (!Array.isArray(employees) || employees.length === 0) {
+        return res.status(400).json({ message: "Employee data array is required" });
+      }
+      const results = {
+        created: 0,
+        updated: 0,
+        errors: []
+      };
+      for (const empData of employees) {
+        try {
+          const existingUser = await storage.getUserByEmail(empData.email) || await storage.getUserByEmployeeId(empData.employeeId);
+          if (existingUser) {
+            await storage.updateUser(existingUser.id, {
+              ...empData,
+              role: "employee",
+              isActive: empData.isActive !== false
+              // Default to active
+            });
+            results.updated++;
+          } else {
+            await storage.createUser({
+              ...empData,
+              role: "employee",
+              password: empData.password || await bcrypt2.hash(`temp${Date.now()}`, 10),
+              isActive: empData.isActive !== false
+            });
+            results.created++;
+            await storage.autoEnrollInComplianceCourses(empData.employeeId || empData.email);
+          }
+        } catch (error) {
+          results.errors.push({
+            employee: empData.email || empData.employeeId,
+            error: error.message
+          });
+        }
+      }
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "Bulk import failed", error: error.message });
+    }
+  });
+  app2.post("/api/deactivate-employees", requireAdmin, async (req, res) => {
+    try {
+      const { employeeIds } = req.body;
+      const results = await storage.deactivateEmployees(employeeIds);
+      res.json({ message: `Deactivated ${results} employees successfully` });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to deactivate employees" });
+    }
+  });
+  app2.get("/api/compliance-status", requireAdmin, async (req, res) => {
+    try {
+      const complianceReport = await storage.getComplianceReport();
+      res.json(complianceReport);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to generate compliance report" });
+    }
+  });
+  app2.post("/api/renew-expired-certifications", requireAdmin, async (req, res) => {
+    try {
+      const { courseId, userIds } = req.body;
+      const renewedEnrollments = await storage.renewExpiredCertifications(courseId, userIds);
+      res.json({
+        message: `Renewed ${renewedEnrollments.length} certifications`,
+        renewedEnrollments
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to renew certifications" });
     }
   });
   app2.post("/api/bulk-assign-users", requireAdmin, async (req, res) => {
@@ -1647,10 +1721,22 @@ async function registerRoutes(app2) {
         return res.status(410).json({ message: "Course deadline has passed" });
       }
       const course = await storage.getCourse(enrollment.courseId);
+      let existingUser = null;
+      if (enrollment.assignedEmail) {
+        existingUser = await storage.getUserByEmail(enrollment.assignedEmail);
+      }
+      if (existingUser && !enrollment.userId) {
+        await storage.updateEnrollment(enrollment.id, {
+          userId: existingUser.id,
+          status: "accessed"
+        });
+      }
       res.json({
         enrollment,
         course,
-        isFirstTime: !enrollment.userId
+        existingUser,
+        isFirstTime: !existingUser
+        // Only first time if no existing user found
       });
     } catch (error) {
       console.error("Error accessing course:", error);
@@ -1691,6 +1777,15 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("Error fetching course assignments:", error);
       res.status(500).json({ message: "Failed to fetch assignments" });
+    }
+  });
+  app2.get("/api/courses/:courseId/has-assignments", requireAdmin, async (req, res) => {
+    try {
+      const assignments = await storage.getCourseAssignments(req.params.courseId);
+      res.json({ hasAssignments: assignments.length > 0 });
+    } catch (error) {
+      console.error("Error checking course assignments:", error);
+      res.status(500).json({ message: "Failed to check assignments" });
     }
   });
   app2.post("/api/send-reminders/:courseId", requireAdmin, async (req, res) => {
