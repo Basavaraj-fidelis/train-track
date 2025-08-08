@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -10,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   GraduationCap,
@@ -42,10 +51,20 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CourseCreationWizard from "@/components/course-creation-wizard";
 import EnhancedEmployeeForm from "@/components/enhanced-employee-form";
-import { BulkAssignCourseDialog, BulkAssignUsersDialog } from "@/components/bulk-assignment-dialogs";
+import {
+  BulkAssignCourseDialog,
+  BulkAssignUsersDialog,
+} from "@/components/bulk-assignment-dialogs";
 import UserAnalyticsDialog from "@/components/user-analytics-dialog";
 import { useForm } from "react-hook-form";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog"; // Import for email assignment dialog
 import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
 import PerformanceMonitor from "@/components/performance-monitor"; // Import PerformanceMonitor
@@ -68,8 +87,10 @@ export default function EnhancedHRDashboard() {
   const [selectedUsersDialog, setSelectedUsersDialog] = useState(false);
   const [selectedCourseDialog, setSelectedCourseDialog] = useState(false);
   const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
-  const [selectedCourseEnrollments, setSelectedCourseEnrollments] = useState<any>(null);
-  const [selectedUserEnrollments, setSelectedUserEnrollments] = useState<any>(null);
+  const [selectedCourseEnrollments, setSelectedCourseEnrollments] =
+    useState<any>(null);
+  const [selectedUserEnrollments, setSelectedUserEnrollments] =
+    useState<any>(null);
   const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
   const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
   const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
@@ -95,8 +116,8 @@ export default function EnhancedHRDashboard() {
       department: "",
       clientName: "",
       phoneNumber: "",
-      password: ""
-    }
+      password: "",
+    },
   });
 
   // Course form for add/edit
@@ -106,7 +127,7 @@ export default function EnhancedHRDashboard() {
       description: "",
       videoPath: "",
       duration: 0,
-    }
+    },
   });
 
   // Check authentication
@@ -121,19 +142,33 @@ export default function EnhancedHRDashboard() {
   }, [authData, authLoading, setLocation]);
 
   // Dashboard stats
-  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    error: statsError,
+  } = useQuery({
     queryKey: ["/api/dashboard-stats"],
     enabled: !!authData?.user,
   });
 
   // Courses
-  const { data: courses, refetch: refetchCourses, isLoading: coursesLoading, error: coursesError } = useQuery({
+  const {
+    data: courses,
+    refetch: refetchCourses,
+    isLoading: coursesLoading,
+    error: coursesError,
+  } = useQuery({
     queryKey: ["/api/courses"],
     enabled: !!authData?.user,
   });
 
   // Employees
-  const { data: employees, refetch: refetchEmployees, isLoading: employeesLoading, error: employeesError } = useQuery({
+  const {
+    data: employees,
+    refetch: refetchEmployees,
+    isLoading: employeesLoading,
+    error: employeesError,
+  } = useQuery({
     queryKey: ["/api/employees"],
     enabled: !!authData?.user,
   });
@@ -141,7 +176,8 @@ export default function EnhancedHRDashboard() {
   // Add enrollment tracking queries
   const { data: courseEnrollments } = useQuery({
     queryKey: ["/api/courses", selectedCourseEnrollments?.id, "enrollments"],
-    enabled: !!selectedCourseEnrollments?.id && authData?.user?.role === "admin",
+    enabled:
+      !!selectedCourseEnrollments?.id && authData?.user?.role === "admin",
   });
 
   const { data: userEnrollments } = useQuery({
@@ -181,7 +217,13 @@ export default function EnhancedHRDashboard() {
   });
 
   const editEmployeeMutation = useMutation({
-    mutationFn: async ({ id, employeeData }: { id: string; employeeData: any }) => {
+    mutationFn: async ({
+      id,
+      employeeData,
+    }: {
+      id: string;
+      employeeData: any;
+    }) => {
       const response = await fetch(`/api/employees/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -253,14 +295,17 @@ export default function EnhancedHRDashboard() {
       department: "",
       clientName: "",
       phoneNumber: "",
-      password: ""
+      password: "",
     });
     setAddEmployeeOpen(true);
   };
 
   const handleUpdateEmployee = (data: any) => {
     if (editingEmployee) {
-      editEmployeeMutation.mutate({ id: editingEmployee.id, employeeData: data });
+      editEmployeeMutation.mutate({
+        id: editingEmployee.id,
+        employeeData: data,
+      });
     }
   };
 
@@ -282,12 +327,14 @@ export default function EnhancedHRDashboard() {
   // Fix course editing logic
   const handleEditCourse = (course: any) => {
     // Check if course has enrolled students
-    const hasEnrollments = enrollments?.[course.id] && enrollments[course.id] > 0;
+    const hasEnrollments =
+      enrollments?.[course.id] && enrollments[course.id] > 0;
 
     if (hasEnrollments) {
       toast({
         title: "Cannot Edit Course",
-        description: "This course cannot be edited as it has been assigned to employees.",
+        description:
+          "This course cannot be edited as it has been assigned to employees.",
         variant: "destructive",
       });
       return;
@@ -303,11 +350,10 @@ export default function EnhancedHRDashboard() {
     setAddCourseOpen(true);
   };
 
-
   const handleDeleteCourse = async (courseId: string) => {
-    if (confirm('Are you sure you want to delete this course?')) {
+    if (confirm("Are you sure you want to delete this course?")) {
       try {
-        await apiRequest('DELETE', `/api/courses/${courseId}`);
+        await apiRequest("DELETE", `/api/courses/${courseId}`);
         // Force refetch for immediate UI updates
         queryClient.refetchQueries({ queryKey: ["/api/courses"] });
         queryClient.refetchQueries({ queryKey: ["/api/dashboard-stats"] });
@@ -326,21 +372,21 @@ export default function EnhancedHRDashboard() {
   };
 
   const handleImportEmployees = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv";
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
         const reader = new FileReader();
         reader.onload = async (event) => {
           const csvData = event.target?.result as string;
-          const lines = csvData.split('\n');
+          const lines = csvData.split("\n");
 
           // Process CSV and import employees
           for (let i = 1; i < lines.length; i++) {
             if (lines[i].trim()) {
-              const values = lines[i].split(',');
+              const values = lines[i].split(",");
               const employeeData = {
                 employeeId: values[0]?.trim(),
                 name: values[1]?.trim(),
@@ -353,9 +399,12 @@ export default function EnhancedHRDashboard() {
 
               if (employeeData.name && employeeData.email) {
                 try {
-                  await apiRequest('POST', '/api/employees', employeeData);
+                  await apiRequest("POST", "/api/employees", employeeData);
                 } catch (error) {
-                  console.error('Failed to import employee:', employeeData.name);
+                  console.error(
+                    "Failed to import employee:",
+                    employeeData.name,
+                  );
                 }
               }
             }
@@ -373,8 +422,6 @@ export default function EnhancedHRDashboard() {
     input.click();
   };
 
-
-
   const exportEmployees = () => {
     if (!employees || employees.length === 0) {
       toast({
@@ -386,7 +433,15 @@ export default function EnhancedHRDashboard() {
     }
 
     const csvContent = [
-      ["Emp ID", "Emp Name", "Employee Email", "Employee Designation", "Employee Department", "Client Name", "Phone Number"],
+      [
+        "Emp ID",
+        "Emp Name",
+        "Employee Email",
+        "Employee Designation",
+        "Employee Department",
+        "Client Name",
+        "Phone Number",
+      ],
       ...employees.map((emp: any) => [
         emp.employeeId || "",
         emp.name || "",
@@ -394,9 +449,11 @@ export default function EnhancedHRDashboard() {
         emp.designation || "",
         emp.department || "",
         emp.clientName || "",
-        emp.phoneNumber || ""
-      ])
-    ].map(row => row.join(",")).join("\n");
+        emp.phoneNumber || "",
+      ]),
+    ]
+      .map((row) => row.join(","))
+      .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -423,7 +480,9 @@ export default function EnhancedHRDashboard() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
               <GraduationCap className="h-8 w-8 text-primary mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">TrainTrack HR Portal</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                TrainTrack HR Portal
+              </h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
@@ -447,7 +506,11 @@ export default function EnhancedHRDashboard() {
                 { id: "dashboard", label: "Dashboard", icon: BarChart3 },
                 { id: "courses", label: "Course Management", icon: Book },
                 { id: "employees", label: "Employee Directory", icon: Users },
-                { id: "performance", label: "Performance Monitor", icon: Activity },
+                {
+                  id: "performance",
+                  label: "Performance Monitor",
+                  icon: Activity,
+                },
                 { id: "settings", label: "Settings", icon: Settings },
               ].map((item) => (
                 <button
@@ -471,23 +534,32 @@ export default function EnhancedHRDashboard() {
             {/* Dashboard Section */}
             {activeSection === "dashboard" && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Dashboard Overview
+                </h2>
 
                 {/* Error handling display */}
                 {(statsError || coursesError) && (
                   <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-red-800 font-medium">Connection Error</h3>
+                        <h3 className="text-red-800 font-medium">
+                          Connection Error
+                        </h3>
                         <p className="text-red-600 text-sm">
-                          {statsError?.message || coursesError?.message || 'Unable to load data. Please try again.'}
+                          {statsError?.message ||
+                            coursesError?.message ||
+                            "Unable to load data. Please try again."}
                         </p>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          if (statsError) queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+                          if (statsError)
+                            queryClient.invalidateQueries({
+                              queryKey: ["/api/dashboard-stats"],
+                            });
                           if (coursesError) refetchCourses();
                         }}
                       >
@@ -505,11 +577,15 @@ export default function EnhancedHRDashboard() {
                           <Users className="text-blue-600" size={24} />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Total Employees</p>
+                          <p className="text-sm text-gray-600">
+                            Total Employees
+                          </p>
                           {statsLoading ? (
                             <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
                           ) : (
-                            <p className="text-2xl font-bold text-gray-900">{stats?.totalEmployees || 0}</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                              {stats?.totalEmployees || 0}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -523,14 +599,20 @@ export default function EnhancedHRDashboard() {
                           <BookOpen className="text-green-600" size={24} />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Active Courses</p>
+                          <p className="text-sm text-gray-600">
+                            Active Courses
+                          </p>
                           {statsLoading ? (
                             <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
                           ) : (
-                            <p className="text-2xl font-bold text-gray-900">{stats?.activeCourses || 0}</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                              {stats?.activeCourses || 0}
+                            </p>
                           )}
                           {coursesError && (
-                            <p className="text-xs text-red-500 mt-1">Connection error</p>
+                            <p className="text-xs text-red-500 mt-1">
+                              Connection error
+                            </p>
                           )}
                         </div>
                       </div>
@@ -539,11 +621,15 @@ export default function EnhancedHRDashboard() {
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Pending Assignments</CardTitle>
+                      <CardTitle className="text-sm font-medium">
+                        Pending Assignments
+                      </CardTitle>
                       <Clock className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats?.pendingAssignments || 0}</div>
+                      <div className="text-2xl font-bold">
+                        {stats?.pendingAssignments || 0}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Courses in progress
                       </p>
@@ -552,11 +638,15 @@ export default function EnhancedHRDashboard() {
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Certificates Issued</CardTitle>
+                      <CardTitle className="text-sm font-medium">
+                        Certificates Issued
+                      </CardTitle>
                       <CheckCircle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats?.certificatesIssued || 0}</div>
+                      <div className="text-2xl font-bold">
+                        {stats?.certificatesIssued || 0}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Successful completions
                       </p>
@@ -567,11 +657,15 @@ export default function EnhancedHRDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Reminders Sent</CardTitle>
+                      <CardTitle className="text-sm font-medium">
+                        Reminders Sent
+                      </CardTitle>
                       <Mail className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats?.remindersSent || 0}</div>
+                      <div className="text-2xl font-bold">
+                        {stats?.remindersSent || 0}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Email reminders sent
                       </p>
@@ -588,21 +682,47 @@ export default function EnhancedHRDashboard() {
                     <CardContent>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Completion Rate</span>
+                          <span className="text-sm font-medium">
+                            Completion Rate
+                          </span>
                           <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0 ? Math.round((stats?.certificatesIssued || 0) / stats.totalEmployees * 100) : 0}%
+                            {stats?.totalEmployees > 0
+                              ? Math.round(
+                                  ((stats?.certificatesIssued || 0) /
+                                    stats.totalEmployees) *
+                                    100,
+                                )
+                              : 0}
+                            %
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Average Courses per Employee</span>
+                          <span className="text-sm font-medium">
+                            Average Courses per Employee
+                          </span>
                           <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0 ? Math.round((stats?.pendingAssignments || 0) / stats.totalEmployees * 10) / 10 : 0}
+                            {stats?.totalEmployees > 0
+                              ? Math.round(
+                                  ((stats?.pendingAssignments || 0) /
+                                    stats.totalEmployees) *
+                                    10,
+                                ) / 10
+                              : 0}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Active Enrollment Rate</span>
+                          <span className="text-sm font-medium">
+                            Active Enrollment Rate
+                          </span>
                           <span className="text-sm text-gray-600">
-                            {stats?.totalEmployees > 0 ? Math.round((stats?.pendingAssignments || 0) / stats.totalEmployees * 100) : 0}%
+                            {stats?.totalEmployees > 0
+                              ? Math.round(
+                                  ((stats?.pendingAssignments || 0) /
+                                    stats.totalEmployees) *
+                                    100,
+                                )
+                              : 0}
+                            %
                           </span>
                         </div>
                       </div>
@@ -618,18 +738,25 @@ export default function EnhancedHRDashboard() {
                         {employees && employees.length > 0 ? (
                           Object.entries(
                             employees.reduce((acc: any, emp: any) => {
-                              const client = emp.clientName || 'Unassigned';
+                              const client = emp.clientName || "Unassigned";
                               acc[client] = (acc[client] || 0) + 1;
                               return acc;
-                            }, {})
+                            }, {}),
                           ).map(([client, count]) => (
-                            <div key={client} className="flex justify-between items-center">
-                              <span className="text-sm font-medium">{client}</span>
+                            <div
+                              key={client}
+                              className="flex justify-between items-center"
+                            >
+                              <span className="text-sm font-medium">
+                                {client}
+                              </span>
                               <Badge variant="secondary">{count}</Badge>
                             </div>
                           ))
                         ) : (
-                          <div className="text-center py-4 text-gray-500">No client data available</div>
+                          <div className="text-center py-4 text-gray-500">
+                            No client data available
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -645,15 +772,29 @@ export default function EnhancedHRDashboard() {
                     <div className="space-y-4">
                       {courses && courses.length > 0 ? (
                         courses.slice(0, 5).map((course: any) => (
-                          <div key={course.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div
+                            key={course.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
                             <div className="flex items-center">
                               <BookOpen className="h-8 w-8 text-primary/20 mr-3" />
                               <div>
-                                <div className="font-medium">{course.title}</div>
-                                <div className="text-sm text-gray-500">Created {new Date(course.createdAt).toLocaleDateString()}</div>
+                                <div className="font-medium">
+                                  {course.title}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  Created{" "}
+                                  {new Date(
+                                    course.createdAt,
+                                  ).toLocaleDateString()}
+                                </div>
                               </div>
                             </div>
-                            <Badge variant={course.isActive ? "default" : "secondary"}>
+                            <Badge
+                              variant={
+                                course.isActive ? "default" : "secondary"
+                              }
+                            >
                               {course.isActive ? "Active" : "Inactive"}
                             </Badge>
                           </div>
@@ -673,7 +814,9 @@ export default function EnhancedHRDashboard() {
             {activeSection === "employees" && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Employee Directory</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Employee Directory
+                  </h2>
                   <div className="flex space-x-2">
                     <Button variant="outline" onClick={exportEmployees}>
                       <Download size={16} className="mr-2" />
@@ -686,13 +829,17 @@ export default function EnhancedHRDashboard() {
                   <CardHeader>
                     <CardTitle>Employee Directory</CardTitle>
                     <p className="text-sm text-gray-600">
-                      Employees are automatically added when they access courses via email assignments
+                      Employees are automatically added when they access courses
+                      via email assignments
                     </p>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       {employees?.map((employee: any) => (
-                        <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div
+                          key={employee.id}
+                          className="flex items-center justify-between p-4 border rounded-lg"
+                        >
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mr-4">
                               <span className="text-primary font-medium text-sm">
@@ -700,20 +847,30 @@ export default function EnhancedHRDashboard() {
                               </span>
                             </div>
                             <div>
-                              <div className="font-medium text-gray-900">{employee.name}</div>
-                              <div className="text-sm text-gray-500">{employee.email}</div>
+                              <div className="font-medium text-gray-900">
+                                {employee.name}
+                              </div>
                               <div className="text-sm text-gray-500">
-                                {employee.employeeId} • {employee.designation} • {employee.department}
+                                {employee.email}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {employee.employeeId} • {employee.designation} •{" "}
+                                {employee.department}
                               </div>
                               {employee.clientName && (
                                 <div className="text-sm text-gray-500">
-                                  Client: {employee.clientName} • {employee.phoneNumber}
+                                  Client: {employee.clientName} •{" "}
+                                  {employee.phoneNumber}
                                 </div>
                               )}
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Badge variant={employee.isActive ? "default" : "secondary"}>
+                            <Badge
+                              variant={
+                                employee.isActive ? "default" : "secondary"
+                              }
+                            >
                               {employee.isActive ? "Active" : "Inactive"}
                             </Badge>
                             <Button
@@ -733,7 +890,9 @@ export default function EnhancedHRDashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteEmployeeMutation.mutate(employee.id)}
+                              onClick={() =>
+                                deleteEmployeeMutation.mutate(employee.id)
+                              }
                             >
                               <Trash2 size={16} />
                             </Button>
@@ -741,7 +900,9 @@ export default function EnhancedHRDashboard() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setSelectedUserEnrollments(employee)}
+                              onClick={() =>
+                                setSelectedUserEnrollments(employee)
+                              }
                             >
                               <BookOpen size={16} className="mr-1" />
                               View Courses
@@ -751,7 +912,8 @@ export default function EnhancedHRDashboard() {
                       ))}
                       {(!employees || employees.length === 0) && (
                         <div className="text-center py-8 text-gray-500">
-                          No employees found. Add your first employee to get started.
+                          No employees found. Add your first employee to get
+                          started.
                         </div>
                       )}
                     </div>
@@ -764,9 +926,11 @@ export default function EnhancedHRDashboard() {
             {activeSection === "courses" && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Course Management
+                  </h2>
                   <div className="flex space-x-2">
-                    <Button onClick={() => setLocation('/create-course')}>
+                    <Button onClick={() => setLocation("/create-course")}>
                       <Plus size={16} className="mr-2" />
                       Create Course
                     </Button>
@@ -776,10 +940,15 @@ export default function EnhancedHRDashboard() {
                 {/* Fix course management display layout */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {courses?.map((course) => (
-                    <Card key={course.id} className="hover:shadow-lg transition-shadow">
+                    <Card
+                      key={course.id}
+                      className="hover:shadow-lg transition-shadow"
+                    >
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-start justify-between gap-2">
-                          <span className="font-semibold text-lg leading-tight">{course.title}</span>
+                          <span className="font-semibold text-lg leading-tight">
+                            {course.title}
+                          </span>
                           <Badge variant="secondary" className="shrink-0">
                             {enrollments?.[course.id] || 0} enrolled
                           </Badge>
@@ -792,7 +961,10 @@ export default function EnhancedHRDashboard() {
                         <div className="space-y-3">
                           <div className="flex items-center text-sm text-gray-500">
                             <Calendar className="w-4 h-4 mr-2 shrink-0" />
-                            <span>Created: {new Date(course.createdAt).toLocaleDateString()}</span>
+                            <span>
+                              Created:{" "}
+                              {new Date(course.createdAt).toLocaleDateString()}
+                            </span>
                           </div>
                           {course.videoPath && (
                             <div className="flex items-center text-sm text-emerald-600">
@@ -800,12 +972,13 @@ export default function EnhancedHRDashboard() {
                               <span>Video content available</span>
                             </div>
                           )}
-                          {enrollments?.[course.id] && enrollments[course.id] > 0 && (
-                            <div className="flex items-center text-sm text-blue-600">
-                              <Users className="w-4 h-4 mr-2 shrink-0" />
-                              <span>Currently assigned to employees</span>
-                            </div>
-                          )}
+                          {enrollments?.[course.id] &&
+                            enrollments[course.id] > 0 && (
+                              <div className="flex items-center text-sm text-blue-600">
+                                <Users className="w-4 h-4 mr-2 shrink-0" />
+                                <span>Currently assigned to employees</span>
+                              </div>
+                            )}
                         </div>
                       </CardContent>
                       <CardFooter className="flex justify-between pt-3">
@@ -813,11 +986,19 @@ export default function EnhancedHRDashboard() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEditCourse(course)}
-                          disabled={!!(enrollments?.[course.id] && enrollments[course.id] > 0)}
+                          disabled={
+                            !!(
+                              enrollments?.[course.id] &&
+                              enrollments[course.id] > 0
+                            )
+                          }
                           className="flex items-center gap-2"
                         >
                           <Edit className="w-4 h-4" />
-                          {enrollments?.[course.id] && enrollments[course.id] > 0 ? 'Assigned' : 'Edit'}
+                          {enrollments?.[course.id] &&
+                          enrollments[course.id] > 0
+                            ? "Assigned"
+                            : "Edit"}
                         </Button>
                         <Button
                           variant="destructive"
@@ -843,7 +1024,9 @@ export default function EnhancedHRDashboard() {
             {/* Performance Section */}
             {activeSection === "performance" && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">System Performance</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  System Performance
+                </h2>
                 <PerformanceMonitor />
               </div>
             )}
@@ -851,7 +1034,9 @@ export default function EnhancedHRDashboard() {
             {/* Settings Section */}
             {activeSection === "settings" && (
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Settings</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                  Settings
+                </h2>
 
                 <div className="space-y-6">
                   {/* General Settings */}
@@ -863,25 +1048,39 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Email Notifications</div>
-                          <div className="text-sm text-gray-500">Send email notifications for course completions</div>
+                          <div className="text-sm text-gray-500">
+                            Send email notifications for course completions
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Configure</Button>
+                        <Button variant="outline" size="sm">
+                          Configure
+                        </Button>
                       </div>
                       <Separator />
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">Default Course Duration</div>
-                          <div className="text-sm text-gray-500">Set default duration for new courses</div>
+                          <div className="font-medium">
+                            Default Course Duration
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Set default duration for new courses
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Edit</Button>
+                        <Button variant="outline" size="sm">
+                          Edit
+                        </Button>
                       </div>
                       <Separator />
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Quiz Passing Score</div>
-                          <div className="text-sm text-gray-500">Default passing score percentage (Currently: 70%)</div>
+                          <div className="text-sm text-gray-500">
+                            Default passing score percentage (Currently: 70%)
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Change</Button>
+                        <Button variant="outline" size="sm">
+                          Change
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -895,19 +1094,27 @@ export default function EnhancedHRDashboard() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <div className="font-medium">Platform Version</div>
-                          <div className="text-sm text-gray-500">TrainTrack v1.0.0</div>
+                          <div className="text-sm text-gray-500">
+                            TrainTrack v1.0.0
+                          </div>
                         </div>
                         <div>
                           <div className="font-medium">Database Status</div>
-                          <div className="text-sm text-green-600">Connected</div>
+                          <div className="text-sm text-green-600">
+                            Connected
+                          </div>
                         </div>
                         <div>
                           <div className="font-medium">Total Storage Used</div>
-                          <div className="text-sm text-gray-500">~{Math.round(Math.random() * 100 + 50)}MB</div>
+                          <div className="text-sm text-gray-500">
+                            ~{Math.round(Math.random() * 100 + 50)}MB
+                          </div>
                         </div>
                         <div>
                           <div className="font-medium">Last Backup</div>
-                          <div className="text-sm text-gray-500">{new Date().toLocaleDateString()}</div>
+                          <div className="text-sm text-gray-500">
+                            {new Date().toLocaleDateString()}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -922,7 +1129,9 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Export All Data</div>
-                          <div className="text-sm text-gray-500">Download all employee and course data</div>
+                          <div className="text-sm text-gray-500">
+                            Download all employee and course data
+                          </div>
                         </div>
                         <Button variant="outline" size="sm">
                           <Download size={16} className="mr-2" />
@@ -933,7 +1142,9 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">System Backup</div>
-                          <div className="text-sm text-gray-500">Create a backup of all system data</div>
+                          <div className="text-sm text-gray-500">
+                            Create a backup of all system data
+                          </div>
                         </div>
                         <Button variant="outline" size="sm">
                           <Upload size={16} className="mr-2" />
@@ -944,9 +1155,13 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Clear Cache</div>
-                          <div className="text-sm text-gray-500">Clear system cache and temporary files</div>
+                          <div className="text-sm text-gray-500">
+                            Clear system cache and temporary files
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Clear Cache</Button>
+                        <Button variant="outline" size="sm">
+                          Clear Cache
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -959,16 +1174,26 @@ export default function EnhancedHRDashboard() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">Auto-Generate Employee IDs</div>
-                          <div className="text-sm text-gray-500">Automatically generate unique employee IDs</div>
+                          <div className="font-medium">
+                            Auto-Generate Employee IDs
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Automatically generate unique employee IDs
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Enable</Button>
+                        <Button variant="outline" size="sm">
+                          Enable
+                        </Button>
                       </div>
                       <Separator />
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">Bulk Import Template</div>
-                          <div className="text-sm text-gray-500">Download CSV template for bulk employee import</div>
+                          <div className="font-medium">
+                            Bulk Import Template
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Download CSV template for bulk employee import
+                          </div>
                         </div>
                         <Button variant="outline" size="sm">
                           <Download size={16} className="mr-2" />
@@ -979,9 +1204,13 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Password Reset</div>
-                          <div className="text-sm text-gray-500">Reset passwords for all employees</div>
+                          <div className="text-sm text-gray-500">
+                            Reset passwords for all employees
+                          </div>
                         </div>
-                        <Button variant="destructive" size="sm">Reset All</Button>
+                        <Button variant="destructive" size="sm">
+                          Reset All
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -995,25 +1224,41 @@ export default function EnhancedHRDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium">Video Upload Limit</div>
-                          <div className="text-sm text-gray-500">Maximum file size for course videos (Current: 500MB)</div>
+                          <div className="text-sm text-gray-500">
+                            Maximum file size for course videos (Current: 500MB)
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Modify</Button>
+                        <Button variant="outline" size="sm">
+                          Modify
+                        </Button>
                       </div>
                       <Separator />
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">Auto-Archive Completed Courses</div>
-                          <div className="text-sm text-gray-500">Automatically archive courses after completion</div>
+                          <div className="font-medium">
+                            Auto-Archive Completed Courses
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Automatically archive courses after completion
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Configure</Button>
+                        <Button variant="outline" size="sm">
+                          Configure
+                        </Button>
                       </div>
                       <Separator />
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">Certificate Template</div>
-                          <div className="text-sm text-gray-500">Customize certificate design and content</div>
+                          <div className="font-medium">
+                            Certificate Template
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Customize certificate design and content
+                          </div>
                         </div>
-                        <Button variant="outline" size="sm">Edit Template</Button>
+                        <Button variant="outline" size="sm">
+                          Edit Template
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1038,7 +1283,12 @@ export default function EnhancedHRDashboard() {
       {/* Edit Employee Dialog */}
       <Dialog open={editEmployeeOpen} onOpenChange={setEditEmployeeOpen}>
         <EnhancedEmployeeForm
-          onSubmit={(data) => editEmployeeMutation.mutate({ id: editingEmployee.id, employeeData: data })}
+          onSubmit={(data) =>
+            editEmployeeMutation.mutate({
+              id: editingEmployee.id,
+              employeeData: data,
+            })
+          }
           onCancel={() => {
             setEditEmployeeOpen(false);
             setEditingEmployee(null);
@@ -1053,7 +1303,9 @@ export default function EnhancedHRDashboard() {
       <Dialog open={addCourseOpen} onOpenChange={setAddCourseOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{editingCourse ? "Edit Course" : "Create New Course"}</DialogTitle>
+            <DialogTitle>
+              {editingCourse ? "Edit Course" : "Create New Course"}
+            </DialogTitle>
             <DialogDescription>
               Fill in the details for the course.
             </DialogDescription>
@@ -1063,23 +1315,41 @@ export default function EnhancedHRDashboard() {
               if (editingCourse) {
                 // Logic to update course
                 try {
-                  await apiRequest('PUT', `/api/courses/${editingCourse.id}`, data);
+                  await apiRequest(
+                    "PUT",
+                    `/api/courses/${editingCourse.id}`,
+                    data,
+                  );
                   queryClient.refetchQueries({ queryKey: ["/api/courses"] });
-                  toast({ title: "Success", description: "Course updated successfully." });
+                  toast({
+                    title: "Success",
+                    description: "Course updated successfully.",
+                  });
                   setAddCourseOpen(false);
                   setEditingCourse(null);
                 } catch (error) {
-                  toast({ title: "Error", description: "Failed to update course.", variant: "destructive" });
+                  toast({
+                    title: "Error",
+                    description: "Failed to update course.",
+                    variant: "destructive",
+                  });
                 }
               } else {
                 // Logic to create course
                 try {
-                  await apiRequest('POST', '/api/courses', data);
+                  await apiRequest("POST", "/api/courses", data);
                   queryClient.refetchQueries({ queryKey: ["/api/courses"] });
-                  toast({ title: "Success", description: "Course created successfully." });
+                  toast({
+                    title: "Success",
+                    description: "Course created successfully.",
+                  });
                   setAddCourseOpen(false);
                 } catch (error) {
-                  toast({ title: "Error", description: "Failed to create course.", variant: "destructive" });
+                  toast({
+                    title: "Error",
+                    description: "Failed to create course.",
+                    variant: "destructive",
+                  });
                 }
               }
             })}
@@ -1133,7 +1403,9 @@ export default function EnhancedHRDashboard() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">{editingCourse ? "Update Course" : "Create Course"}</Button>
+              <Button type="submit">
+                {editingCourse ? "Update Course" : "Create Course"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1176,12 +1448,18 @@ export default function EnhancedHRDashboard() {
       )}
 
       {/* Course Enrollments Dialog */}
-      <Dialog open={!!selectedCourseEnrollments} onOpenChange={() => setSelectedCourseEnrollments(null)}>
+      <Dialog
+        open={!!selectedCourseEnrollments}
+        onOpenChange={() => setSelectedCourseEnrollments(null)}
+      >
         <DialogContent className="max-w-4xl">
           <CardHeader>
-            <CardTitle>Course Assignments: {selectedCourseEnrollments?.title}</CardTitle>
+            <CardTitle>
+              Course Assignments: {selectedCourseEnrollments?.title}
+            </CardTitle>
             <p className="text-sm text-gray-600">
-              Users assigned via email will receive unique access links. They don't login with email directly.
+              Users assigned via email will receive unique access links. They
+              don't login with email directly.
             </p>
           </CardHeader>
           <div className="max-h-96 overflow-y-auto">
@@ -1203,10 +1481,16 @@ export default function EnhancedHRDashboard() {
                       <TableCell>{enrollment.user.name}</TableCell>
                       <TableCell>{enrollment.user.email}</TableCell>
                       <TableCell>{enrollment.user.department}</TableCell>
-                      <TableCell>{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>{enrollment.progress}%</TableCell>
                       <TableCell>
-                        <Badge variant={enrollment.completedAt ? "default" : "secondary"}>
+                        <Badge
+                          variant={
+                            enrollment.completedAt ? "default" : "secondary"
+                          }
+                        >
                           {enrollment.completedAt ? "Completed" : "In Progress"}
                         </Badge>
                       </TableCell>
@@ -1224,10 +1508,15 @@ export default function EnhancedHRDashboard() {
       </Dialog>
 
       {/* User Enrollments Dialog */}
-      <Dialog open={!!selectedUserEnrollments} onOpenChange={() => setSelectedUserEnrollments(null)}>
+      <Dialog
+        open={!!selectedUserEnrollments}
+        onOpenChange={() => setSelectedUserEnrollments(null)}
+      >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Course Assignments: {selectedUserEnrollments?.name}</DialogTitle>
+            <DialogTitle>
+              Course Assignments: {selectedUserEnrollments?.name}
+            </DialogTitle>
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto">
             {userEnrollments && userEnrollments.length > 0 ? (
@@ -1246,17 +1535,35 @@ export default function EnhancedHRDashboard() {
                   {userEnrollments.map((enrollment: any) => (
                     <TableRow key={enrollment.id}>
                       <TableCell>{enrollment.course.title}</TableCell>
-                      <TableCell>{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{enrollment.progress}%</TableCell>
-                      <TableCell>{enrollment.quizScore ? `${enrollment.quizScore}%` : "Not taken"}</TableCell>
                       <TableCell>
-                        <Badge variant={enrollment.completedAt ? "default" : "secondary"}>
+                        {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{enrollment.progress}%</TableCell>
+                      <TableCell>
+                        {enrollment.quizScore
+                          ? `${enrollment.quizScore}%`
+                          : "Not taken"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            enrollment.completedAt ? "default" : "secondary"
+                          }
+                        >
                           {enrollment.completedAt ? "Completed" : "In Progress"}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={enrollment.certificateIssued ? "default" : "secondary"}>
-                          {enrollment.certificateIssued ? "Issued" : "Not issued"}
+                        <Badge
+                          variant={
+                            enrollment.certificateIssued
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {enrollment.certificateIssued
+                            ? "Issued"
+                            : "Not issued"}
                         </Badge>
                       </TableCell>
                     </TableRow>
