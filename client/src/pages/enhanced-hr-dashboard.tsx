@@ -482,6 +482,7 @@ export default function EnhancedHRDashboard() {
         [
           "Email",
           "User Name",
+          "Client Name",
           "Assigned Date",
           "Deadline",
           "Status",
@@ -494,6 +495,7 @@ export default function EnhancedHRDashboard() {
         ...assignments.map((assignment: any) => [
           assignment.assignedEmail || assignment.user?.email || "",
           assignment.user?.name || "Not registered",
+          assignment.user?.clientName || "N/A",
           assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A",
           assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A",
           assignment.completedAt ? "Completed" : assignment.status === "expired" ? "Expired" : assignment.userId ? "In Progress" : "Email Sent",
@@ -762,28 +764,7 @@ export default function EnhancedHRDashboard() {
                   </Card>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <Card className="border-0 shadow-lg bg-gradient-to-br from-teal-50 to-teal-100/50 hover:shadow-xl transition-all duration-300">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center">
-                        <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl flex items-center justify-center mr-4 shadow-lg">
-                          <Mail className="text-white" size={26} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-teal-700 mb-1">
-                            Reminders Sent
-                          </p>
-                          <p className="text-3xl font-bold text-teal-900">
-                            {stats?.remindersSent || 0}
-                          </p>
-                          <p className="text-xs text-teal-600 font-medium">
-                            Email reminders sent
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                
 
                 {/* Enhanced Analytics Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -1105,7 +1086,7 @@ export default function EnhancedHRDashboard() {
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary">
-                                {allEnrollments?.filter((e: any) => e.courseId === course.id)?.length || 0}
+                                {allEnrollments?.filter((e: any) => e.course?.id === course.id || e.courseId === course.id)?.length || 0}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -1643,6 +1624,7 @@ export default function EnhancedHRDashboard() {
                     <TableHead>Employee Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Client Name</TableHead>
                     <TableHead>Enrolled Date</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Status</TableHead>
@@ -1654,6 +1636,7 @@ export default function EnhancedHRDashboard() {
                       <TableCell>{enrollment.user.name}</TableCell>
                       <TableCell>{enrollment.user.email}</TableCell>
                       <TableCell>{enrollment.user.department}</TableCell>
+                      <TableCell>{enrollment.user.clientName || "N/A"}</TableCell>
                       <TableCell>
                         {new Date(enrollment.enrolledAt).toLocaleDateString()}
                       </TableCell>
@@ -1697,6 +1680,7 @@ export default function EnhancedHRDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Course Title</TableHead>
+                    <TableHead>Client Name</TableHead>
                     <TableHead>Enrolled Date</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Quiz Score</TableHead>
@@ -1708,6 +1692,7 @@ export default function EnhancedHRDashboard() {
                   {userEnrollments.map((enrollment: any) => (
                     <TableRow key={enrollment.id}>
                       <TableCell>{enrollment.course.title}</TableCell>
+                      <TableCell>{selectedUserEnrollments?.clientName || "N/A"}</TableCell>
                       <TableCell>
                         {new Date(enrollment.enrolledAt).toLocaleDateString()}
                       </TableCell>
