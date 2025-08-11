@@ -521,29 +521,29 @@ export class Storage {
   }
 
   async getCourseEnrollments(courseId: string): Promise<any[]> {
-    return db
+    const enrollmentsData = await db
       .select({
         id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
         enrolledAt: enrollments.enrolledAt,
-        completedAt: enrollments.completedAt,
         progress: enrollments.progress,
-        quizScore: enrollments.quizScore,
+        completedAt: enrollments.completedAt,
         certificateIssued: enrollments.certificateIssued,
-        deadline: enrollments.deadline,
-        status: enrollments.status,
         assignedEmail: enrollments.assignedEmail,
         user: {
           id: users.id,
           name: users.name,
           email: users.email,
-          employeeId: users.employeeId,
           department: users.department,
+          clientName: users.clientName,
         },
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
-      .where(eq(enrollments.courseId, courseId))
-      .orderBy(desc(enrollments.enrolledAt));
+      .where(eq(enrollments.courseId, courseId));
+
+    return enrollmentsData;
   }
 
   // Certificate management
@@ -827,29 +827,34 @@ export class Storage {
 
   // Assignment tracking
   async getCourseAssignments(courseId: string): Promise<any[]> {
-    return db
+    const enrollments = await db
       .select({
         id: enrollments.id,
         assignedEmail: enrollments.assignedEmail,
-        assignmentToken: enrollments.assignmentToken,
+        enrolledAt: enrollments.enrolledAt,
         deadline: enrollments.deadline,
         status: enrollments.status,
         progress: enrollments.progress,
-        certificateIssued: enrollments.certificateIssued,
         remindersSent: enrollments.remindersSent,
-        enrolledAt: enrollments.enrolledAt,
+        certificateIssued: enrollments.certificateIssued,
         completedAt: enrollments.completedAt,
+        lastAccessedAt: enrollments.lastAccessedAt,
+        assignmentToken: enrollments.assignmentToken,
+        userId: enrollments.userId,
         user: {
           id: users.id,
           name: users.name,
           email: users.email,
+          clientName: users.clientName,
+          department: users.department,
           employeeId: users.employeeId,
         },
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
-      .where(eq(enrollments.courseId, courseId))
-      .orderBy(desc(enrollments.enrolledAt));
+      .where(eq(enrollments.courseId, courseId));
+
+    return enrollments;
   }
 
   async incrementReminderCount(enrollmentId: string): Promise<void> {

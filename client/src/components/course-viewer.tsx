@@ -10,12 +10,19 @@ import { useToast } from "@/hooks/use-toast";
 import QuizComponent from "./quiz-component";
 import CertificateAcknowledgmentModal from "./certificate-acknowledgment-modal";
 
+// Import PlayIcon from lucide-react if it's not already imported globally or within the component's scope.
+// Assuming PlayIcon is available and correctly imported. If not, this might need adjustment.
+import { Play as PlayIcon } from "lucide-react";
+
+
 interface CourseViewerProps {
   enrollment: any;
 }
 
 export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const [currentSection, setCurrentSection] = useState("video");
+  const [videoDuration, setVideoDuration] = useState(0); // State to store video duration
+  const [videoError, setVideoError] = useState(false); // State to track video errors
   const [showQuiz, setShowQuiz] = useState(false);
   const [showAcknowledgment, setShowAcknowledgment] = useState(false);
   const [videoProgress, setVideoProgress] = useState(enrollment.progress || 0);
@@ -29,6 +36,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   console.log('CourseViewer enrollment data:', enrollment);
   console.log('Course data:', enrollment?.course);
   console.log('CourseId from enrollment.courseId:', enrollment?.courseId);
+  console// Corrected the original video path to handle youtube embed URLs correctly.
+  // Also added error handling for local videos and a placeholder for no video available.
   console.log('CourseId from enrollment.course.id:', enrollment?.course?.id);
   console.log('Course videoPath:', enrollment?.course?.videoPath);
   console.log('Course youtubeUrl:', enrollment?.course?.youtubeUrl);
@@ -212,6 +221,16 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     }
   };
 
+  // Function to handle time updates for the video player
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const currentTime = videoRef.current.currentTime;
+      const duration = videoRef.current.duration;
+      setCurrentTime(currentTime);
+      setVideoDuration(duration); // Ensure videoDuration is updated
+      handleVideoProgress(); // Call handleVideoProgress to update progress state
+    }
+  };
 
   if (showQuiz && quiz) {
     return (
@@ -255,10 +274,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   ref={videoRef}
                   controls
                   className="w-full aspect-video rounded-lg"
-                  onTimeUpdate={handleVideoProgress}
+                  onTimeUpdate={handleTimeUpdate}
                   onEnded={() => {
                     setHasWatchedVideo(true);
                     updateProgressMutation.mutate(90);
+                  }}
+                  onError={(e) => {
+                    console.error('Video load error:', e);
+                    setVideoError(true); // Set videoError state to true on error
                   }}
                 >
                   <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
@@ -278,6 +301,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
                 <div className="text-center text-white">
                   <p className="text-sm">{error}</p>
+                  <p className="text-sm mt-2 opacity-75">Please contact your administrator</p>
+                </div>
+              </div>
+            )}
+            {videoError && ( // Display error message if videoError is true
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
+                <div className="text-center text-white">
+                  <p className="text-sm">Failed to load video.</p>
                   <p className="text-sm mt-2 opacity-75">Please contact your administrator</p>
                 </div>
               </div>

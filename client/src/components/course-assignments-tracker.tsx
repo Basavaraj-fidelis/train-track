@@ -162,6 +162,7 @@ export default function CourseAssignmentsTracker({
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>User Name</TableHead>
+                    <TableHead>Client Name</TableHead>
                     <TableHead>Assigned Date</TableHead>
                     <TableHead>Deadline</TableHead>
                     <TableHead>Status</TableHead>
@@ -174,6 +175,7 @@ export default function CourseAssignmentsTracker({
                     <TableRow key={assignment.id}>
                       <TableCell>{assignment.assignedEmail || assignment.user?.email}</TableCell>
                       <TableCell>{assignment.user?.name || "Not registered"}</TableCell>
+                      <TableCell>{assignment.user?.clientName || "N/A"}</TableCell>
                       <TableCell>
                         {assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A"}
                       </TableCell>
