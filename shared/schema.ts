@@ -59,7 +59,7 @@ export const enrollments = pgTable("enrollments", {
   userId: varchar("user_id").references(() => users.id),
   courseId: varchar("course_id").references(() => courses.id).notNull(),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
-  completedAt: timestamp("completedAt"),
+  completedAt: timestamp("completed_at"),
   progress: integer("progress").default(0), // percentage 0-100
   quizScore: integer("quiz_score"),
   certificateIssued: boolean("certificate_issued").default(false),

@@ -1214,7 +1214,7 @@ export class Storage {
       })
       .from(users)
       .where(eq(users.resetToken, token));
-    
+
     if (!user || !user.resetTokenExpiry) {
       return null;
     }
