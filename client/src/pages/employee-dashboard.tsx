@@ -225,30 +225,37 @@ export default function EmployeeDashboard() {
                               <div key={enrollment.id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="font-medium text-gray-900">{enrollment.course.title}</h4>
-                                  <Badge variant={
-                                    enrollment.certificateIssued ? "default" : 
-                                    enrollment.quizScore && enrollment.quizScore >= 70 ? "default" :
-                                    enrollment.quizScore && enrollment.quizScore < 70 ? "destructive" : "secondary"
-                                  }>
+                                  <Badge 
+                                    variant={
+                                      enrollment.certificateIssued ? "default" : 
+                                      enrollment.progress >= 100 ? "outline" : 
+                                      enrollment.progress > 0 ? "secondary" : "outline"
+                                    }
+                                    className="mb-2"
+                                  >
                                     {enrollment.certificateIssued ? "Completed" : 
-                                     enrollment.quizScore && enrollment.quizScore >= 70 ? "Awaiting Certificate" :
-                                     enrollment.quizScore && enrollment.quizScore < 70 ? "Needs Retake" : "In Progress"}
+                                     enrollment.progress >= 100 ? "Awaiting Certificate" :
+                                     enrollment.progress > 0 ? "In Progress" : "Not Started"}
                                   </Badge>
                                 </div>
                                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">{enrollment.course.description}</p>
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-sm text-gray-600">Progress</span>
-                                  <span className="text-sm font-medium text-gray-900">{enrollment.progress}%</span>
+                                  <span className="text-sm font-medium text-gray-900">{Math.max(0, Math.min(100, enrollment.progress || 0))}%</span>
                                 </div>
-                                <Progress value={enrollment.progress} className="mb-3" />
+                                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                                  <div
+                                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.max(0, Math.min(100, enrollment.progress || 0))}%` }}
+                                  />
+                                </div>
                                 <Button
                                   size="sm"
                                   className="w-full"
                                   onClick={() => setSelectedCourse(enrollment)}
                                 >
                                   {enrollment.certificateIssued ? "Review Course" :
-                                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Get Certificate" :
-                                   enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Course" :
+                                   enrollment.progress >= 100 ? "Get Certificate" :
                                    enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                                 </Button>
                               </div>
@@ -277,7 +284,7 @@ export default function EmployeeDashboard() {
                                 // Use course type and certificate data for proper expiry calculation
                                 const issuedDate = new Date(cert.issuedAt);
                                 let expirationDate = new Date(issuedDate);
-                                
+
                                 // Check if course is recurring and has expiry data
                                 if (cert.course.courseType === 'recurring' && cert.certificateData?.expiresAt) {
                                   expirationDate = new Date(cert.certificateData.expiresAt);
@@ -347,14 +354,17 @@ export default function EmployeeDashboard() {
                             <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl mb-4 relative overflow-hidden flex items-center justify-center">
                               <Play className="text-blue-600" size={32} />
                               <div className="absolute top-3 left-3">
-                                <Badge variant={
-                                  enrollment.certificateIssued ? "default" : 
-                                  enrollment.quizScore && enrollment.quizScore >= 70 ? "default" :
-                                  enrollment.quizScore && enrollment.quizScore < 70 ? "destructive" : "secondary"
-                                }>
+                                <Badge 
+                                  variant={
+                                    enrollment.certificateIssued ? "default" : 
+                                    enrollment.progress >= 100 ? "outline" : 
+                                    enrollment.progress > 0 ? "secondary" : "outline"
+                                  }
+                                  className="mb-2"
+                                >
                                   {enrollment.certificateIssued ? "Completed" : 
-                                   enrollment.quizScore && enrollment.quizScore >= 70 ? "Awaiting Certificate" :
-                                   enrollment.quizScore && enrollment.quizScore < 70 ? "Needs Retake" : "In Progress"}
+                                   enrollment.progress >= 100 ? "Awaiting Certificate" :
+                                   enrollment.progress > 0 ? "In Progress" : "Not Started"}
                                 </Badge>
                               </div>
                             </div>
@@ -366,7 +376,7 @@ export default function EmployeeDashboard() {
                                 {enrollment.course.duration} min
                               </span>
                               {enrollment.progress > 0 && (
-                                <span>{enrollment.progress}% complete</span>
+                                <span>{Math.max(0, Math.min(100, enrollment.progress || 0))}% complete</span>
                               )}
                             </div>
                             {enrollment.progress > 0 && enrollment.progress < 100 && (
@@ -377,8 +387,7 @@ export default function EmployeeDashboard() {
                               onClick={() => setSelectedCourse(enrollment)}
                             >
                               {enrollment.certificateIssued ? "Review Course" :
-                               enrollment.quizScore && enrollment.quizScore >= 70 ? "Get Certificate" :
-                               enrollment.quizScore && enrollment.quizScore < 70 ? "Retake Course" :
+                               enrollment.progress >= 100 ? "Get Certificate" :
                                enrollment.progress > 0 ? "Continue Course" : "Start Course"}
                             </Button>
                           </CardContent>
@@ -633,7 +642,7 @@ export default function EmployeeDashboard() {
                                 <div key={enrollment.id}>
                                   <div className="flex justify-between items-center mb-1">
                                     <span className="text-sm font-medium text-gray-900">{enrollment.course.title}</span>
-                                    <span className="text-sm text-gray-600">{enrollment.progress}%</span>
+                                    <span className="text-sm text-gray-600">{Math.max(0, Math.min(100, enrollment.progress || 0))}%</span>
                                   </div>
                                   <Progress value={enrollment.progress} />
                                 </div>

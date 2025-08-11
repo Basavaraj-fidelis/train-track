@@ -131,7 +131,7 @@ export class Storage {
     };
 
     console.log('Creating course with video path:', finalVideoPath);
-    
+
     const [newCourse] = await db.insert(courses).values(courseToInsert).returning();
 
     // Create quiz if questions are provided
@@ -175,13 +175,13 @@ export class Storage {
 
   async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[]; youtubeUrl?: string }>): Promise<Course | null> {
     const updateData: Partial<InsertCourse> = { ...courseData };
-    
+
     // Handle video path update - prioritize youtubeUrl
     if (courseData.youtubeUrl !== undefined) {
       updateData.videoPath = courseData.youtubeUrl.trim() || '';
       delete (updateData as any).youtubeUrl; // Remove from the set of fields to update
     }
-    
+
     // Remove questions from update data as it's handled separately
     delete (updateData as any).questions;
 
@@ -552,7 +552,7 @@ export class Storage {
         duration: enrollment.courseDuration,
         courseType: enrollment.courseType,
         renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
-        isComplianceCourse: enrollment.courseIsComplianceCourse,
+        isComplianceCourse: enrollment.isComplianceCourse,
       } : null,
     }));
   }
@@ -936,61 +936,45 @@ export class Storage {
   // Assignment tracking
   async getCourseAssignments(courseId: string): Promise<any[]> {
     try {
-      const enrollmentsList = await db
+      console.log(`Fetching assignments for course: ${courseId}`);
+
+      const result = await db
         .select({
           id: enrollments.id,
+          courseId: enrollments.courseId,
+          userId: enrollments.userId,
           assignedEmail: enrollments.assignedEmail,
           enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
+          quizScore: enrollments.quizScore,
+          certificateIssued: enrollments.certificateIssued,
+          remindersSent: enrollments.remindersSent,
           deadline: enrollments.deadline,
           status: enrollments.status,
-          progress: enrollments.progress,
-          remindersSent: enrollments.remindersSent,
-          certificateIssued: enrollments.certificateIssued,
-          completedAt: enrollments.completedAt,
           lastAccessedAt: enrollments.lastAccessedAt,
           assignmentToken: enrollments.assignmentToken,
-          userId: enrollments.userId,
-          quizScore: enrollments.quizScore,
-          // Separate user fields instead of nested object
+          completedAt: enrollments.completedAt,
           userName: users.name,
           userEmail: users.email,
           userClientName: users.clientName,
-          userDepartment: users.department,
-          userEmployeeId: users.employeeId,
-          userIdFromTable: users.id,
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
-        .where(eq(enrollments.courseId, courseId))
-        .orderBy(desc(enrollments.enrolledAt));
+        .where(eq(enrollments.courseId, courseId));
 
-      // Transform the flat structure back to nested for compatibility
-      const transformedList = enrollmentsList.map(enrollment => ({
-        id: enrollment.id || '',
-        assignedEmail: enrollment.assignedEmail || null,
-        enrolledAt: enrollment.enrolledAt || null,
-        deadline: enrollment.deadline || null,
-        status: enrollment.status || 'pending',
-        progress: enrollment.progress || 0,
-        remindersSent: enrollment.remindersSent || 0,
-        certificateIssued: enrollment.certificateIssued || false,
-        completedAt: enrollment.completedAt || null,
-        lastAccessedAt: enrollment.lastAccessedAt || enrollment.enrolledAt || null,
-        assignmentToken: enrollment.assignmentToken || null,
-        userId: enrollment.userId || null,
-        quizScore: enrollment.quizScore || null,
-        user: enrollment.userIdFromTable ? {
-          id: enrollment.userIdFromTable,
-          name: enrollment.userName || 'Unknown',
-          email: enrollment.userEmail || enrollment.assignedEmail || 'No email',
-          clientName: enrollment.userClientName || 'N/A',
-          department: enrollment.userDepartment || 'Not registered',
-          employeeId: enrollment.userEmployeeId || 'N/A',
-        } : null,
+      // Transform the result to match the expected format
+      const transformedResult = result.map(row => ({
+        ...row,
+        user: row.userId ? {
+          id: row.userId,
+          name: row.userName,
+          email: row.userEmail,
+          clientName: row.userClientName,
+        } : null
       }));
 
-      console.log(`Retrieved ${transformedList.length} assignments for course ${courseId}`);
-      return transformedList;
+      console.log(`Found ${transformedResult.length} assignments for course ${courseId}`);
+      return transformedResult;
     } catch (error) {
       console.error(`Error retrieving course assignments for ${courseId}:`, error);
       return [];

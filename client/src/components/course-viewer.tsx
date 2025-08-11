@@ -319,24 +319,30 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Course Overview</h3>
               <div className="flex items-center space-x-2">
-                <Badge variant={enrollment.progress === 100 ? "default" : "secondary"}>
-                  {enrollment.progress === 100 ? "Completed" : "In Progress"}
+                <Badge variant={
+                  enrollment.certificateIssued ? "default" : 
+                  enrollment.progress >= 100 ? "outline" : 
+                  "secondary"
+                }>
+                  {enrollment.certificateIssued ? "Completed" : 
+                   enrollment.progress >= 100 ? "Awaiting Certificate" : 
+                   "In Progress"}
                 </Badge>
                 {enrollment.progress > 0 && (
-                  <span className="text-sm text-gray-500">{enrollment.progress}% complete</span>
+                  <span className="text-sm text-gray-500">{Math.max(0, Math.min(100, enrollment.progress))}% complete</span>
                 )}
               </div>
             </div>
 
             <p className="text-gray-700">{course.description}</p>
 
-            {enrollment.progress < 100 && (
+            {!enrollment.certificateIssued && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Progress</span>
-                  <span>{enrollment.progress}%</span>
+                  <span>{Math.max(0, Math.min(100, enrollment.progress))}%</span>
                 </div>
-                <Progress value={enrollment.progress} />
+                <Progress value={Math.max(0, Math.min(100, enrollment.progress))} />
               </div>
             )}
 
