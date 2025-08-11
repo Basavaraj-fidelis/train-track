@@ -359,6 +359,7 @@ async function ensureSchemaUpdates() {
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
+    console.log("Database schema updates completed successfully");
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS youtube_url TEXT`);
     console.log("Database schema updates completed successfully");
   } catch (error) {
@@ -1091,11 +1092,15 @@ var Storage = class {
   async getCourseAssignments(courseId) {
     try {
       console.log(`Fetching assignments for course: ${courseId}`);
+      const courseExists = await db.select({ id: courses.id, title: courses.title }).from(courses).where(eq(courses.id, courseId)).limit(1);
+      console.log(`Course exists check:`, courseExists);
+      const enrollmentCount = await db.select({ count: sql3`COUNT(*)` }).from(enrollments).where(eq(enrollments.courseId, courseId));
+      console.log(`Total enrollments for course ${courseId}:`, enrollmentCount[0]?.count || 0);
       const result = await db.select({
         // Enrollment fields
-        id: enrollments.id,
-        courseId: enrollments.courseId,
-        userId: enrollments.userId,
+        enrollmentId: enrollments.id,
+        enrollmentCourseId: enrollments.courseId,
+        enrollmentUserId: enrollments.userId,
         assignedEmail: enrollments.assignedEmail,
         enrolledAt: enrollments.enrolledAt,
         progress: enrollments.progress,
@@ -1106,21 +1111,31 @@ var Storage = class {
         status: enrollments.status,
         completedAt: enrollments.completedAt,
         assignmentToken: enrollments.assignmentToken,
-        lastAccessedAt: enrollments.lastAccessedAt,
+        lastAccessedAt: sql3`COALESCE(${enrollments.completedAt}, ${enrollments.enrolledAt})`.as("lastAccessedAt"),
         // User fields
-        userIdFromJoin: users.id,
+        userId: users.id,
         userName: users.name,
         userEmail: users.email,
         userDepartment: users.department,
         userClientName: users.clientName
       }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId)).orderBy(desc(enrollments.enrolledAt));
       console.log(`Raw query result count: ${result.length}`);
+      if (result.length === 0) {
+        console.log(`No enrollments found for course ${courseId}. Let's check what courses do exist:`);
+        const allCourses = await db.select({ id: courses.id, title: courses.title }).from(courses).limit(5);
+        console.log(`Sample courses in database:`, allCourses);
+        const allEnrollments = await db.select({
+          id: enrollments.id,
+          courseId: enrollments.courseId
+        }).from(enrollments).limit(5);
+        console.log(`Sample enrollments in database:`, allEnrollments);
+      }
       const transformedData = result.map((row, index) => {
         try {
           return {
-            id: row.id || `temp-${Date.now()}-${index}`,
-            courseId: row.courseId || courseId,
-            userId: row.userId || null,
+            id: row.enrollmentId || `temp-${Date.now()}-${index}`,
+            courseId: row.enrollmentCourseId || courseId,
+            userId: row.enrollmentUserId || null,
             assignedEmail: row.assignedEmail || "",
             enrolledAt: row.enrolledAt || null,
             progress: Math.max(0, Math.min(100, Number(row.progress) || 0)),
@@ -1132,8 +1147,8 @@ var Storage = class {
             completedAt: row.completedAt || null,
             assignmentToken: row.assignmentToken || null,
             lastAccessedAt: row.lastAccessedAt || null,
-            user: row.userIdFromJoin ? {
-              id: row.userIdFromJoin,
+            user: row.userId ? {
+              id: row.userId,
               name: row.userName || "Not registered",
               email: row.userEmail || row.assignedEmail || "",
               department: row.userDepartment || "N/A",
@@ -1156,8 +1171,24 @@ var Storage = class {
     await db.update(enrollments).set({ remindersSent: sql3`${enrollments.remindersSent} + 1` }).where(eq(enrollments.id, enrollmentId));
   }
   async getTotalRemindersSent() {
-    const [result] = await db.select({ total: sql3`SUM(${enrollments.remindersSent})` }).from(enrollments);
-    return result?.total || 0;
+    const result = await db.select({ total: sql3`SUM(${enrollments.remindersSent})` }).from(enrollments);
+    return result[0]?.total || 0;
+  }
+  // Fix progress for enrollments that have certificates but progress < 100%
+  async fixCompletedCourseProgress() {
+    const enrollmentsToFix = await db.select().from(enrollments).where(and(
+      eq(enrollments.certificateIssued, true),
+      lt(enrollments.progress, 100)
+    ));
+    let fixedCount = 0;
+    for (const enrollment of enrollmentsToFix) {
+      await db.update(enrollments).set({
+        progress: 100,
+        status: "completed"
+      }).where(eq(enrollments.id, enrollment.id));
+      fixedCount++;
+    }
+    return fixedCount;
   }
   async getCourseDeletionImpact(courseId) {
     const course = await this.getCourse(courseId);
@@ -1236,6 +1267,9 @@ import nodemailer from "nodemailer";
 import "express-session";
 
 // server/routes.ts
+init_db();
+init_schema();
+import { eq as eq2, sql as sql4 } from "drizzle-orm";
 var upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -1291,6 +1325,14 @@ async function registerRoutes(app2) {
     return false;
   };
   await checkDatabaseHealth();
+  try {
+    const fixedCount = await storage.fixCompletedCourseProgress();
+    if (fixedCount > 0) {
+      console.log(`Fixed progress for ${fixedCount} completed enrollments`);
+    }
+  } catch (error) {
+    console.error("Failed to fix completed course progress:", error);
+  }
   app2.post("/api/admin/reset-database", async (req, res) => {
     try {
       const { resetKey } = req.body;
@@ -1891,8 +1933,8 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/certificates", requireAdmin, async (req, res) => {
     try {
-      const certificates2 = await storage.getAllCertificates();
-      res.json(certificates2);
+      const certificates3 = await storage.getAllCertificates();
+      res.json(certificates3);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch certificates" });
     }
@@ -1924,13 +1966,20 @@ async function registerRoutes(app2) {
       const passingScore = quiz?.passingScore || 70;
       const isPassing = score >= passingScore;
       console.log("Quiz validation:", { passingScore, isPassing, currentScore: score });
+      let newProgress;
+      if (enrollment.certificateIssued) {
+        newProgress = 100;
+      } else if (isPassing) {
+        newProgress = 95;
+      } else {
+        newProgress = Math.min(90, enrollment.progress || 0);
+      }
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: isPassing ? 95 : Math.min(90, enrollment.progress || 0),
-        // Mark as 95% if passing (awaiting acknowledgment), keep existing progress if not passing
-        completedAt: null,
-        // Don't mark completed until certificate is acknowledged
-        status: isPassing ? "accessed" : "pending"
+        progress: newProgress,
+        completedAt: enrollment.certificateIssued ? enrollment.completedAt : null,
+        // Keep existing completion date if certificate issued
+        status: enrollment.certificateIssued ? "completed" : isPassing ? "accessed" : "pending"
       });
       let certificate = null;
       console.log("Quiz passed - awaiting acknowledgment for certificate generation");
@@ -1954,8 +2003,8 @@ async function registerRoutes(app2) {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const certificates2 = await storage.getUserCertificates(req.session.userId);
-      res.json(certificates2);
+      const certificates3 = await storage.getUserCertificates(req.session.userId);
+      res.json(certificates3);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch certificates" });
     }
@@ -2019,7 +2068,7 @@ async function registerRoutes(app2) {
       await storage.updateEnrollment(enrollment.id, {
         certificateIssued: true,
         progress: 100,
-        // Set progress to 100% when certificate is generated
+        // Ensure progress is exactly 100% when certificate is issued
         completedAt: /* @__PURE__ */ new Date(),
         expiresAt,
         isExpired: false,
@@ -2319,6 +2368,47 @@ async function registerRoutes(app2) {
     } catch (error) {
       console.error("Error completing profile:", error);
       res.status(500).json({ message: "Failed to complete profile" });
+    }
+  });
+  app2.get("/api/debug/database-check", requireAdmin, async (req, res) => {
+    try {
+      const [coursesResult, enrollmentsResult, usersResult] = await Promise.all([
+        db.select({
+          id: courses.id,
+          title: courses.title,
+          isActive: courses.isActive
+        }).from(courses).limit(10),
+        db.select({
+          id: enrollments.id,
+          courseId: enrollments.courseId,
+          userId: enrollments.userId,
+          assignedEmail: enrollments.assignedEmail,
+          status: enrollments.status,
+          enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
+          certificateIssued: enrollments.certificateIssued
+        }).from(enrollments).limit(10),
+        db.select({
+          id: users.id,
+          name: users.name,
+          email: users.email
+        }).from(users).limit(10)
+      ]);
+      const specificCourseEnrollments = await db.select().from(enrollments).where(eq2(enrollments.courseId, "f24ea136-f8db-4e54-b0f5-33fe6c39bd99"));
+      res.json({
+        courses: coursesResult,
+        enrollments: enrollmentsResult,
+        users: usersResult,
+        specificCourseEnrollments,
+        counts: {
+          totalCourses: await db.select({ count: sql4`COUNT(*)` }).from(courses).then((r) => r[0]?.count || 0),
+          totalEnrollments: await db.select({ count: sql4`COUNT(*)` }).from(enrollments).then((r) => r[0]?.count || 0),
+          totalUsers: await db.select({ count: sql4`COUNT(*)` }).from(users).then((r) => r[0]?.count || 0)
+        }
+      });
+    } catch (error) {
+      console.error("Debug database check failed:", error);
+      res.status(500).json({ message: "Debug check failed", error: error.message });
     }
   });
   app2.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
