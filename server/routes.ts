@@ -513,6 +513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
               <p style="color: #666; font-size: 14px;">
                 This link will expire in 24 hours. If you did not request this, please ignore this email.
+                <br><br>
+                <strong>Direct link:</strong> ${resetLink}
               </p>
             </div>
           `,
@@ -547,9 +549,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { token, password } = req.body;
+      const { token, password, newPassword } = req.body;
+      const passwordToUse = password || newPassword;
 
-      if (!token || !password) {
+      if (!token || !passwordToUse) {
         return res.status(400).json({ message: "Token and password are required" });
       }
 
@@ -577,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update password and clear reset token
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(passwordToUse, 10);
       
       try {
         await db.update(users)

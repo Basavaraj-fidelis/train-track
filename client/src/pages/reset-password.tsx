@@ -49,7 +49,7 @@ export default function ResetPassword() {
     mutationFn: async (data: ResetPasswordForm) => {
       const response = await apiRequest("POST", "/api/auth/reset-password", {
         token,
-        newPassword: data.newPassword,
+        password: data.newPassword,
       });
       return response.json();
     },
