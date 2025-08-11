@@ -111,10 +111,18 @@ export class Storage {
 
   // Course management
   async createCourse(courseData: InsertCourse & { questions?: any[]; courseType?: string, youtubeUrl?: string }): Promise<Course> {
+    // Determine the video path - prioritize youtubeUrl over videoPath
+    let finalVideoPath = '';
+    if (courseData.youtubeUrl && courseData.youtubeUrl.trim()) {
+      finalVideoPath = courseData.youtubeUrl.trim();
+    } else if (courseData.videoPath && courseData.videoPath.trim()) {
+      finalVideoPath = courseData.videoPath.trim();
+    }
+
     const courseToInsert: InsertCourse = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.youtubeUrl || courseData.videoPath || '', // Store YouTube URL or video file path
+      videoPath: finalVideoPath, // Store YouTube URL or video file path
       duration: courseData.duration || 0,
       createdBy: courseData.createdBy || 'admin',
       courseType: courseData.courseType as "recurring" | "one-time" || "one-time",
@@ -122,6 +130,8 @@ export class Storage {
       reminderDays: courseData.reminderDays || 7,
     };
 
+    console.log('Creating course with video path:', finalVideoPath);
+    
     const [newCourse] = await db.insert(courses).values(courseToInsert).returning();
 
     // Create quiz if questions are provided
@@ -133,6 +143,12 @@ export class Storage {
         passingScore: 70,
       });
     }
+
+    console.log('Course created successfully:', {
+      id: newCourse.id,
+      title: newCourse.title,
+      videoPath: newCourse.videoPath
+    });
 
     return newCourse;
   }
@@ -159,19 +175,28 @@ export class Storage {
 
   async updateCourse(id: string, courseData: Partial<InsertCourse & { questions?: any[]; youtubeUrl?: string }>): Promise<Course | null> {
     const updateData: Partial<InsertCourse> = { ...courseData };
-    // Ensure youtubeUrl is mapped to videoPath for the database update
+    
+    // Handle video path update - prioritize youtubeUrl
     if (courseData.youtubeUrl !== undefined) {
-      updateData.videoPath = courseData.youtubeUrl || '';
-      delete (updateData as any).youtubeUrl; // Remove from the set of fields to update if it's not a direct column
+      updateData.videoPath = courseData.youtubeUrl.trim() || '';
+      delete (updateData as any).youtubeUrl; // Remove from the set of fields to update
     }
+    
+    // Remove questions from update data as it's handled separately
     delete (updateData as any).questions;
 
+    console.log(`Updating course ${id} with video path:`, updateData.videoPath);
 
     const [updatedCourse] = await db
       .update(courses)
       .set(updateData)
       .where(eq(courses.id, id))
       .returning();
+
+    if (!updatedCourse) {
+      console.error(`Failed to update course with id: ${id}`);
+      return null;
+    }
 
     // Update quiz if questions are provided
     if (courseData.questions) {
@@ -193,7 +218,13 @@ export class Storage {
       }
     }
 
-    return updatedCourse || null;
+    console.log('Course updated successfully:', {
+      id: updatedCourse.id,
+      title: updatedCourse.title,
+      videoPath: updatedCourse.videoPath
+    });
+
+    return updatedCourse;
   }
 
   async deleteCourse(id: string): Promise<boolean> {
@@ -424,12 +455,15 @@ export class Storage {
         status: enrollments.status,
         remindersSent: enrollments.remindersSent,
         lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
-        // Separate course fields instead of nested object
+        // Include ALL course fields including videoPath
         courseId2: courses.id,
         courseTitle: courses.title,
         courseDescription: courses.description,
+        courseVideoPath: courses.videoPath,
         courseDuration: courses.duration,
         courseType: courses.courseType,
+        courseCreatedAt: courses.createdAt,
+        courseIsActive: courses.isActive,
         courseRenewalPeriodMonths: courses.renewalPeriodMonths,
         courseIsComplianceCourse: courses.isComplianceCourse,
       })
@@ -460,8 +494,11 @@ export class Storage {
         id: enrollment.courseId2,
         title: enrollment.courseTitle,
         description: enrollment.courseDescription,
+        videoPath: enrollment.courseVideoPath, // Include videoPath
         duration: enrollment.courseDuration,
         courseType: enrollment.courseType,
+        createdAt: enrollment.courseCreatedAt,
+        isActive: enrollment.courseIsActive,
         renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
         isComplianceCourse: enrollment.courseIsComplianceCourse,
       } : null,
@@ -898,61 +935,66 @@ export class Storage {
 
   // Assignment tracking
   async getCourseAssignments(courseId: string): Promise<any[]> {
-    const enrollmentsList = await db
-      .select({
-        id: enrollments.id,
-        assignedEmail: enrollments.assignedEmail,
-        enrolledAt: enrollments.enrolledAt,
-        deadline: enrollments.deadline,
-        status: enrollments.status,
-        progress: enrollments.progress,
-        remindersSent: enrollments.remindersSent,
-        certificateIssued: enrollments.certificateIssued,
-        completedAt: enrollments.completedAt,
-        lastAccessedAt: enrollments.lastAccessedAt,
-        assignmentToken: enrollments.assignmentToken,
-        userId: enrollments.userId,
-        quizScore: enrollments.quizScore,
-        // Separate user fields instead of nested object
-        userName: users.name,
-        userEmail: users.email,
-        userClientName: users.clientName,
-        userDepartment: users.department,
-        userEmployeeId: users.employeeId,
-        userIdFromTable: users.id,
-      })
-      .from(enrollments)
-      .leftJoin(users, eq(enrollments.userId, users.id))
-      .where(eq(enrollments.courseId, courseId))
-      .orderBy(desc(enrollments.enrolledAt));
+    try {
+      const enrollmentsList = await db
+        .select({
+          id: enrollments.id,
+          assignedEmail: enrollments.assignedEmail,
+          enrolledAt: enrollments.enrolledAt,
+          deadline: enrollments.deadline,
+          status: enrollments.status,
+          progress: enrollments.progress,
+          remindersSent: enrollments.remindersSent,
+          certificateIssued: enrollments.certificateIssued,
+          completedAt: enrollments.completedAt,
+          lastAccessedAt: enrollments.lastAccessedAt,
+          assignmentToken: enrollments.assignmentToken,
+          userId: enrollments.userId,
+          quizScore: enrollments.quizScore,
+          // Separate user fields instead of nested object
+          userName: users.name,
+          userEmail: users.email,
+          userClientName: users.clientName,
+          userDepartment: users.department,
+          userEmployeeId: users.employeeId,
+          userIdFromTable: users.id,
+        })
+        .from(enrollments)
+        .leftJoin(users, eq(enrollments.userId, users.id))
+        .where(eq(enrollments.courseId, courseId))
+        .orderBy(desc(enrollments.enrolledAt));
 
-    // Transform the flat structure back to nested for compatibility
-    const transformedList = enrollmentsList.map(enrollment => ({
-      id: enrollment.id,
-      assignedEmail: enrollment.assignedEmail,
-      enrolledAt: enrollment.enrolledAt,
-      deadline: enrollment.deadline,
-      status: enrollment.status,
-      progress: enrollment.progress,
-      remindersSent: enrollment.remindersSent,
-      certificateIssued: enrollment.certificateIssued,
-      completedAt: enrollment.completedAt,
-      lastAccessedAt: enrollment.lastAccessedAt,
-      assignmentToken: enrollment.assignmentToken,
-      userId: enrollment.userId,
-      quizScore: enrollment.quizScore,
-      user: enrollment.userIdFromTable ? {
-        id: enrollment.userIdFromTable,
-        name: enrollment.userName,
-        email: enrollment.userEmail,
-        clientName: enrollment.userClientName,
-        department: enrollment.userDepartment,
-        employeeId: enrollment.userEmployeeId,
-      } : null,
-    }));
+      // Transform the flat structure back to nested for compatibility
+      const transformedList = enrollmentsList.map(enrollment => ({
+        id: enrollment.id || '',
+        assignedEmail: enrollment.assignedEmail || null,
+        enrolledAt: enrollment.enrolledAt || null,
+        deadline: enrollment.deadline || null,
+        status: enrollment.status || 'pending',
+        progress: enrollment.progress || 0,
+        remindersSent: enrollment.remindersSent || 0,
+        certificateIssued: enrollment.certificateIssued || false,
+        completedAt: enrollment.completedAt || null,
+        lastAccessedAt: enrollment.lastAccessedAt || enrollment.enrolledAt || null,
+        assignmentToken: enrollment.assignmentToken || null,
+        userId: enrollment.userId || null,
+        quizScore: enrollment.quizScore || null,
+        user: enrollment.userIdFromTable ? {
+          id: enrollment.userIdFromTable,
+          name: enrollment.userName || 'Unknown',
+          email: enrollment.userEmail || enrollment.assignedEmail || 'No email',
+          clientName: enrollment.userClientName || 'N/A',
+          department: enrollment.userDepartment || 'Not registered',
+          employeeId: enrollment.userEmployeeId || 'N/A',
+        } : null,
+      }));
 
-    console.log(`Retrieved ${transformedList.length} assignments for course ${courseId}`);
-    return transformedList;
+      console.log(`Retrieved ${transformedList.length} assignments for course ${courseId}`);
+      return transformedList;
+    } catch (error) {
+      console.error(`Error retrieving course assignments for ${courseId}:`, error);
+      return [];
+    }
   }
 
   async incrementReminderCount(enrollmentId: string): Promise<void> {

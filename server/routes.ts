@@ -286,7 +286,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Course creation request body:', req.body);
       console.log('Course creation file:', req.file);
-      console.log('Session during course creation:', req.session);
 
       const { title, description, questions, courseType, youtubeUrl } = req.body;
 
@@ -295,14 +294,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Require either a video file or YouTube URL
-      if (!youtubeUrl && !req.file) {
+      if (!youtubeUrl?.trim() && !req.file) {
         return res.status(400).json({ message: "Video file or YouTube URL is required" });
       }
 
       let parsedQuestions = [];
       if (questions) {
         try {
-          // Handle both string and object formats
           parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
         } catch (parseError) {
           console.error('Error parsing questions:', parseError);
@@ -310,31 +308,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Determine video source - either file upload or YouTube URL
-      let finalVideoPath = '';
-      if (req.file) {
-        finalVideoPath = req.file.filename;
-      } else if (youtubeUrl) {
-        finalVideoPath = youtubeUrl.trim();
-      }
-
+      // Create course using youtubeUrl parameter
       const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        videoPath: finalVideoPath,
+        youtubeUrl: youtubeUrl?.trim() || '', // Use youtubeUrl parameter
+        videoPath: req.file ? req.file.filename : '', // Use file upload if available
         courseType: courseType || 'one-time',
         createdBy: req.session.userId!,
         questions: parsedQuestions,
       });
 
-      // If there are questions, create a separate quiz entry
-      if (parsedQuestions.length > 0) {
-        await storage.addQuizToCourse(course.id, {
-          title: `${title} Quiz`,
-          questions: parsedQuestions,
-          passingScore: 70
-        });
-      }
+      console.log('Course created with ID:', course.id, 'Video path:', course.videoPath);
 
       res.json({ success: true, course });
     } catch (error) {
@@ -358,36 +343,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle video upload or YouTube URL update
       if (req.file) {
         updateData.videoPath = req.file.filename;
+        console.log('Updating course with uploaded file:', req.file.filename);
       } else if (youtubeUrl !== undefined) {
-        updateData.videoPath = youtubeUrl.trim() || '';
+        updateData.youtubeUrl = youtubeUrl?.trim() || '';
+        console.log('Updating course with YouTube URL:', youtubeUrl);
       }
 
       // Handle questions update
       if (questions) {
         let parsedQuestions = [];
         try {
-          // Handle both string and object formats
           parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
         } catch (parseError) {
           console.error('Error parsing questions:', parseError);
           return res.status(400).json({ message: "Invalid questions format" });
         }
         updateData.questions = parsedQuestions;
-
-        // If questions are updated, update or create the associated quiz
-        if (parsedQuestions.length > 0) {
-          await storage.addQuizToCourse(req.params.id, {
-            title: `${title} Quiz`,
-            questions: parsedQuestions,
-            passingScore: 70
-          });
-        } else {
-          // If questions are cleared, also remove the associated quiz
-          await storage.deleteQuizByCourseId(req.params.id);
-        }
       }
 
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
+      
+      if (!updatedCourse) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+
       res.json(updatedCourse);
     } catch (error) {
       console.error('Course update error:', error);
