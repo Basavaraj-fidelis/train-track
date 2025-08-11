@@ -197,6 +197,21 @@ async function ensureSchemaUpdates() {
     
     // Add missing renewal_count column to users table
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0`);
+    
+    // Ensure all required columns exist
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number text`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS client_name text`);
+    
+    // Update enrollments table to ensure all columns exist
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assigned_email text`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent integer DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS expires_at timestamp`);
+    await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_expired boolean DEFAULT false`);
 
     console.log('Database schema updates completed successfully');
 

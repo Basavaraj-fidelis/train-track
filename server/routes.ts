@@ -92,6 +92,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check database health on startup
   await checkDatabaseHealth();
 
+  // Test route for debugging
+  app.get("/api/test", (req, res) => {
+    res.json({ message: "API is working", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/auth/test", (req, res) => {
+    res.json({ message: "Auth routes are working", timestamp: new Date().toISOString() });
+  });
+
   // Fix progress for completed courses on startup
   try {
     const fixedCount = await storage.fixCompletedCourseProgress();
@@ -430,9 +439,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Password Reset Functionality
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
+      console.log('Forgot password route accessed');
+      console.log('Request body:', req.body);
+      
       const { email } = req.body;
       
       if (!email || !email.trim()) {
+        console.log('No email provided in request');
         return res.status(400).json({ message: "Email is required" });
       }
 
@@ -441,6 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let user;
       try {
         user = await storage.getUserByEmail(email.trim());
+        console.log('User lookup result:', user ? 'User found' : 'User not found');
       } catch (dbError) {
         console.error("Database error fetching user:", dbError);
         // Return generic message for security
