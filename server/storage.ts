@@ -984,7 +984,7 @@ export class Storage {
           status: enrollments.status,
           completedAt: enrollments.completedAt,
           assignmentToken: enrollments.assignmentToken,
-          lastAccessedAt: sql<Date | null>`COALESCE(${enrollments.lastAccessedAt}, ${enrollments.completedAt}, ${enrollments.enrolledAt})`.as('lastAccessedAt')
+          lastAccessedAt: sql<Date | null>`COALESCE(${enrollments.lastAccessedAt}, ${enrollments.completedAt}, ${enrollments.enrolledAt})`.as('lastAccessedAt'),
           // User fields
           userId: users.id,
           userName: users.name,
