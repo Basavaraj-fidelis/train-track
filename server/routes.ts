@@ -1321,7 +1321,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           courseId: enrollments.courseId, 
           userId: enrollments.userId, 
           assignedEmail: enrollments.assignedEmail,
-          status: enrollments.status
+          status: enrollments.status,
+          enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
+          certificateIssued: enrollments.certificateIssued
         }).from(enrollments).limit(10),
         db.select({ 
           id: users.id, 
@@ -1330,10 +1333,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }).from(users).limit(10)
       ]);
 
+      // Specific debug for the problematic course
+      const specificCourseEnrollments = await db
+        .select()
+        .from(enrollments)
+        .where(eq(enrollments.courseId, 'f24ea136-f8db-4e54-b0f5-33fe6c39bd99'));
+
       res.json({
         courses: coursesResult,
         enrollments: enrollmentsResult,
         users: usersResult,
+        specificCourseEnrollments,
         counts: {
           totalCourses: await db.select({ count: sql<number>`COUNT(*)` }).from(courses).then(r => r[0]?.count || 0),
           totalEnrollments: await db.select({ count: sql<number>`COUNT(*)` }).from(enrollments).then(r => r[0]?.count || 0),
