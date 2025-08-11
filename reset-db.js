@@ -1,6 +1,6 @@
 
-const { Pool } = require('@neondatabase/serverless');
-const bcrypt = require('bcrypt');
+import { Pool } from '@neondatabase/serverless';
+import bcrypt from 'bcrypt';
 
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL environment variable is not set');
