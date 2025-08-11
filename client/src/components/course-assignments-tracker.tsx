@@ -24,20 +24,23 @@ export default function CourseAssignmentsTracker({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: assignments, isLoading, refetch } = useQuery({
+  const { data: assignments, isLoading, refetch, error } = useQuery({
     queryKey: ["/api/course-assignments", courseId],
     enabled: open && !!courseId,
     queryFn: async () => {
       console.log(`Fetching assignments for course: ${courseId}`);
       const response = await apiRequest("GET", `/api/course-assignments/${courseId}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
+        const errorText = await response.text();
+        console.error(`Failed to fetch assignments: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch assignments: ${response.status}`);
       }
       const data = await response.json();
-      console.log(`Received ${data.length} assignments:`, data);
-      return data;
+      console.log(`Received ${Array.isArray(data) ? data.length : 0} assignments:`, data);
+      return Array.isArray(data) ? data : [];
     },
-    retry: 1,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
   });
 
@@ -175,6 +178,17 @@ export default function CourseAssignmentsTracker({
           <div className="border rounded-lg">
             {isLoading ? (
               <div className="p-8 text-center">Loading assignments...</div>
+            ) : error ? (
+              <div className="p-8 text-center text-red-500">
+                <p>Error loading assignments: {error.message}</p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetch()} 
+                  className="mt-4"
+                >
+                  Retry
+                </Button>
+              </div>
             ) : assignments && assignments.length > 0 ? (
               <Table>
                 <TableHeader>
@@ -190,43 +204,50 @@ export default function CourseAssignmentsTracker({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignments.map((assignment: any) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell>{assignment.assignedEmail || assignment.user?.email}</TableCell>
-                      <TableCell>{assignment.user?.name || "Not registered"}</TableCell>
-                      <TableCell>{assignment.user?.clientName || "N/A"}</TableCell>
-                      <TableCell>
-                        {assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          assignment.completedAt ? "default" :
-                          assignment.status === "expired" ? "destructive" :
-                          assignment.userId ? "outline" : "secondary"
-                        }>
-                          {assignment.completedAt ? "Completed" :
-                           assignment.status === "expired" ? "Expired" :
-                           assignment.userId ? "In Progress" :
-                           "Email Sent"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${assignment.progress || 0}%` }}
-                            />
+                  {assignments.map((assignment: any) => {
+                    const userEmail = assignment.assignedEmail || assignment.user?.email || "N/A";
+                    const userName = assignment.user?.name || "Not registered";
+                    const clientName = assignment.user?.clientName || "N/A";
+                    const progress = Math.max(0, Math.min(100, assignment.progress || 0));
+                    
+                    return (
+                      <TableRow key={assignment.id || `assignment-${Math.random()}`}>
+                        <TableCell>{userEmail}</TableCell>
+                        <TableCell>{userName}</TableCell>
+                        <TableCell>{clientName}</TableCell>
+                        <TableCell>
+                          {assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            assignment.certificateIssued ? "default" :
+                            assignment.status === "expired" ? "destructive" :
+                            assignment.userId ? "outline" : "secondary"
+                          }>
+                            {assignment.certificateIssued ? "Completed" :
+                             assignment.status === "expired" ? "Expired" :
+                             assignment.userId ? "In Progress" :
+                             "Email Sent"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-16 bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-gray-600">{progress}%</span>
                           </div>
-                          <span className="text-sm text-gray-600">{assignment.progress || 0}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{assignment.remindersSent || 0}</TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>{assignment.remindersSent || 0}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             ) : (

@@ -424,15 +424,14 @@ export class Storage {
         status: enrollments.status,
         remindersSent: enrollments.remindersSent,
         lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
-        course: {
-          id: courses.id,
-          title: courses.title,
-          description: courses.description,
-          duration: courses.duration,
-          courseType: courses.courseType,
-          renewalPeriodMonths: courses.renewalPeriodMonths,
-          isComplianceCourse: courses.isComplianceCourse,
-        },
+        // Separate course fields instead of nested object
+        courseId2: courses.id,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
+        courseDuration: courses.duration,
+        courseType: courses.courseType,
+        courseRenewalPeriodMonths: courses.renewalPeriodMonths,
+        courseIsComplianceCourse: courses.isComplianceCourse,
       })
       .from(enrollments)
       .leftJoin(courses, eq(enrollments.courseId, courses.id))
@@ -440,8 +439,32 @@ export class Storage {
       .orderBy(enrollments.enrolledAt);
 
     return enrollmentsData.map(enrollment => ({
-      ...enrollment,
-      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+      id: enrollment.id,
+      userId: enrollment.userId,
+      courseId: enrollment.courseId,
+      enrolledAt: enrollment.enrolledAt,
+      completedAt: enrollment.completedAt,
+      progress: enrollment.progress,
+      quizScore: enrollment.quizScore,
+      certificateIssued: enrollment.certificateIssued,
+      expiresAt: enrollment.expiresAt,
+      isExpired: enrollment.isExpired,
+      renewalCount: enrollment.renewalCount,
+      assignedEmail: enrollment.assignedEmail,
+      assignmentToken: enrollment.assignmentToken,
+      deadline: enrollment.deadline,
+      status: enrollment.status,
+      remindersSent: enrollment.remindersSent,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
+      course: enrollment.courseId2 ? {
+        id: enrollment.courseId2,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription,
+        duration: enrollment.courseDuration,
+        courseType: enrollment.courseType,
+        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+        isComplianceCourse: enrollment.courseIsComplianceCourse,
+      } : null,
     }));
   }
 
@@ -465,15 +488,14 @@ export class Storage {
         status: enrollments.status,
         remindersSent: enrollments.remindersSent,
         lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
-        course: {
-          id: courses.id,
-          title: courses.title,
-          description: courses.description,
-          duration: courses.duration,
-          courseType: courses.courseType,
-          renewalPeriodMonths: courses.renewalPeriodMonths,
-          isComplianceCourse: courses.isComplianceCourse,
-        },
+        // Separate course fields instead of nested object
+        courseId2: courses.id,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
+        courseDuration: courses.duration,
+        courseType: courses.courseType,
+        courseRenewalPeriodMonths: courses.renewalPeriodMonths,
+        courseIsComplianceCourse: courses.isComplianceCourse,
       })
       .from(enrollments)
       .leftJoin(courses, eq(enrollments.courseId, courses.id))
@@ -485,12 +507,21 @@ export class Storage {
 
     return enrollmentsData.map(enrollment => ({
       ...enrollment,
-      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
+      course: enrollment.courseId2 ? {
+        id: enrollment.courseId2,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription,
+        duration: enrollment.courseDuration,
+        courseType: enrollment.courseType,
+        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+        isComplianceCourse: enrollment.courseIsComplianceCourse,
+      } : null,
     }));
   }
 
   async getAllEnrollments(): Promise<any[]> {
-    return db
+    const enrollmentsData = await db
       .select({
         id: enrollments.id,
         enrolledAt: enrollments.enrolledAt,
@@ -502,22 +533,44 @@ export class Storage {
         status: enrollments.status,
         assignedEmail: enrollments.assignedEmail,
         remindersSent: enrollments.remindersSent,
-        user: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          employeeId: users.employeeId,
-        },
-        course: {
-          id: courses.id,
-          title: courses.title,
-          description: courses.description,
-        },
+        // Separate user fields
+        userId: users.id,
+        userName: users.name,
+        userEmail: users.email,
+        userEmployeeId: users.employeeId,
+        // Separate course fields
+        courseId: courses.id,
+        courseTitle: courses.title,
+        courseDescription: courses.description,
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
       .innerJoin(courses, eq(enrollments.courseId, courses.id))
       .orderBy(desc(enrollments.enrolledAt));
+
+    return enrollmentsData.map(enrollment => ({
+      id: enrollment.id,
+      enrolledAt: enrollment.enrolledAt,
+      completedAt: enrollment.completedAt,
+      progress: enrollment.progress,
+      quizScore: enrollment.quizScore,
+      certificateIssued: enrollment.certificateIssued,
+      deadline: enrollment.deadline,
+      status: enrollment.status,
+      assignedEmail: enrollment.assignedEmail,
+      remindersSent: enrollment.remindersSent,
+      user: enrollment.userId ? {
+        id: enrollment.userId,
+        name: enrollment.userName,
+        email: enrollment.userEmail,
+        employeeId: enrollment.userEmployeeId,
+      } : null,
+      course: {
+        id: enrollment.courseId,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription,
+      },
+    }));
   }
 
   async getCourseEnrollments(courseId: string): Promise<any[]> {
@@ -531,19 +584,37 @@ export class Storage {
         completedAt: enrollments.completedAt,
         certificateIssued: enrollments.certificateIssued,
         assignedEmail: enrollments.assignedEmail,
-        user: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          department: users.department,
-          clientName: users.clientName,
-        },
+        // Separate user fields instead of nested object
+        userName: users.name,
+        userEmail: users.email,
+        userDepartment: users.department,
+        userClientName: users.clientName,
+        userIdFromTable: users.id,
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
       .where(eq(enrollments.courseId, courseId));
 
-    return enrollmentsData;
+    // Transform the flat structure back to nested for compatibility
+    const transformedData = enrollmentsData.map(enrollment => ({
+      id: enrollment.id,
+      userId: enrollment.userId,
+      courseId: enrollment.courseId,
+      enrolledAt: enrollment.enrolledAt,
+      progress: enrollment.progress,
+      completedAt: enrollment.completedAt,
+      certificateIssued: enrollment.certificateIssued,
+      assignedEmail: enrollment.assignedEmail,
+      user: enrollment.userIdFromTable ? {
+        id: enrollment.userIdFromTable,
+        name: enrollment.userName,
+        email: enrollment.userEmail,
+        department: enrollment.userDepartment,
+        clientName: enrollment.userClientName,
+      } : null,
+    }));
+
+    return transformedData;
   }
 
   // Certificate management
@@ -842,22 +913,46 @@ export class Storage {
         assignmentToken: enrollments.assignmentToken,
         userId: enrollments.userId,
         quizScore: enrollments.quizScore,
-        user: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          clientName: users.clientName,
-          department: users.department,
-          employeeId: users.employeeId,
-        },
+        // Separate user fields instead of nested object
+        userName: users.name,
+        userEmail: users.email,
+        userClientName: users.clientName,
+        userDepartment: users.department,
+        userEmployeeId: users.employeeId,
+        userIdFromTable: users.id,
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
       .where(eq(enrollments.courseId, courseId))
       .orderBy(desc(enrollments.enrolledAt));
 
-    console.log(`Retrieved ${enrollmentsList.length} assignments for course ${courseId}`);
-    return enrollmentsList;
+    // Transform the flat structure back to nested for compatibility
+    const transformedList = enrollmentsList.map(enrollment => ({
+      id: enrollment.id,
+      assignedEmail: enrollment.assignedEmail,
+      enrolledAt: enrollment.enrolledAt,
+      deadline: enrollment.deadline,
+      status: enrollment.status,
+      progress: enrollment.progress,
+      remindersSent: enrollment.remindersSent,
+      certificateIssued: enrollment.certificateIssued,
+      completedAt: enrollment.completedAt,
+      lastAccessedAt: enrollment.lastAccessedAt,
+      assignmentToken: enrollment.assignmentToken,
+      userId: enrollment.userId,
+      quizScore: enrollment.quizScore,
+      user: enrollment.userIdFromTable ? {
+        id: enrollment.userIdFromTable,
+        name: enrollment.userName,
+        email: enrollment.userEmail,
+        clientName: enrollment.userClientName,
+        department: enrollment.userDepartment,
+        employeeId: enrollment.userEmployeeId,
+      } : null,
+    }));
+
+    console.log(`Retrieved ${transformedList.length} assignments for course ${courseId}`);
+    return transformedList;
   }
 
   async incrementReminderCount(enrollmentId: string): Promise<void> {
