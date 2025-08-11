@@ -242,7 +242,7 @@ export default function EmployeeDashboard() {
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <Clock className="w-4 h-4" />
-                                    <span>{enrollment.course?.duration || 30} minutes</span>
+                                    <span>{enrollment.course?.duration || 0} minutes</span>
                                   </div>
                                   <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <BarChart3 className="w-4 h-4" />
@@ -379,7 +379,7 @@ export default function EmployeeDashboard() {
                             <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
                               <span>
                                 <Clock size={12} className="inline mr-1" />
-                                {enrollment.course.duration} min
+                                {enrollment.course?.duration || 0} min
                               </span>
                               {enrollment.progress > 0 && (
                                 <span>{Math.max(0, Math.min(100, enrollment.progress || 0))}% complete</span>

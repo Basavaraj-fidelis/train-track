@@ -942,8 +942,8 @@ export default function EnhancedHRDashboard() {
                                   }
 
                                   const stats = acc[client].courseStats.get(courseTitle);
-                                  // Check if course is completed (progress 100% and certificate issued)
-                                  if (enrollment.progress >= 100 && enrollment.certificateIssued) {
+                                  // Check if course is completed (certificate issued is the definitive completion indicator)
+                                  if (enrollment.certificateIssued === true) {
                                     stats.completed += 1;
                                   } else {
                                     stats.incomplete += 1;

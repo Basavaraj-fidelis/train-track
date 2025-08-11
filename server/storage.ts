@@ -443,14 +443,73 @@ export class Storage {
   async getUserEnrollments(userId: string): Promise<any[]> {
     try {
       const results = await db
-        .select()
+        .select({
+          // Enrollment fields
+          id: enrollments.id,
+          userId: enrollments.userId,
+          courseId: enrollments.courseId,
+          enrolledAt: enrollments.enrolledAt,
+          completedAt: enrollments.completedAt,
+          progress: enrollments.progress,
+          quizScore: enrollments.quizScore,
+          certificateIssued: enrollments.certificateIssued,
+          expiresAt: enrollments.expiresAt,
+          isExpired: enrollments.isExpired,
+          renewalCount: enrollments.renewalCount,
+          assignedEmail: enrollments.assignedEmail,
+          assignmentToken: enrollments.assignmentToken,
+          deadline: enrollments.deadline,
+          status: enrollments.status,
+          remindersSent: enrollments.remindersSent,
+          lastAccessedAt: enrollments.completedAt,
+          // Course fields
+          courseId2: courses.id,
+          courseTitle: courses.title,
+          courseDescription: courses.description,
+          courseDuration: courses.duration,
+          courseVideoPath: courses.videoPath,
+          courseType: courses.courseType,
+          courseRenewalPeriodMonths: courses.renewalPeriodMonths,
+          courseIsComplianceCourse: courses.isComplianceCourse,
+          courseIsActive: courses.isActive,
+        })
         .from(enrollments)
         .leftJoin(courses, eq(enrollments.courseId, courses.id))
-        .where(eq(enrollments.userId, userId));
+        .where(and(
+          eq(enrollments.userId, userId),
+          eq(courses.isActive, true) // Only active courses
+        ))
+        .orderBy(enrollments.enrolledAt);
 
-      return results.map(result => ({
-        ...result.enrollments,
-        course: result.courses
+      return results.map(enrollment => ({
+        id: enrollment.id,
+        userId: enrollment.userId,
+        courseId: enrollment.courseId,
+        enrolledAt: enrollment.enrolledAt,
+        completedAt: enrollment.completedAt,
+        progress: enrollment.progress || 0,
+        quizScore: enrollment.quizScore,
+        certificateIssued: enrollment.certificateIssued || false,
+        expiresAt: enrollment.expiresAt,
+        isExpired: enrollment.isExpired || false,
+        renewalCount: enrollment.renewalCount || 0,
+        assignedEmail: enrollment.assignedEmail,
+        assignmentToken: enrollment.assignmentToken,
+        deadline: enrollment.deadline,
+        status: enrollment.status || 'pending',
+        remindersSent: enrollment.remindersSent || 0,
+        lastAccessedAt: enrollment.lastAccessedAt || enrollment.enrolledAt,
+        course: enrollment.courseId2 ? {
+          id: enrollment.courseId2,
+          title: enrollment.courseTitle,
+          description: enrollment.courseDescription,
+          duration: enrollment.courseDuration || 0,
+          videoPath: enrollment.courseVideoPath,
+          courseType: enrollment.courseType,
+          renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+          isComplianceCourse: enrollment.courseIsComplianceCourse,
+          isActive: enrollment.courseIsActive,
+        } : null,
       })).filter(enrollment => enrollment.course); // Filter out enrollments without valid courses
     } catch (error) {
       console.error('Database error in getUserEnrollments:', error);
@@ -528,37 +587,46 @@ export class Storage {
         userName: users.name,
         userEmail: users.email,
         userEmployeeId: users.employeeId,
+        userClientName: users.clientName,
         // Separate course fields
         courseId: courses.id,
         courseTitle: courses.title,
         courseDescription: courses.description,
+        courseDuration: courses.duration,
+        courseType: courses.courseType,
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
       .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .where(eq(courses.isActive, true)) // Only active courses
       .orderBy(desc(enrollments.enrolledAt));
 
     return enrollmentsData.map(enrollment => ({
       id: enrollment.id,
+      userId: enrollment.userId,
+      courseId: enrollment.courseId,
       enrolledAt: enrollment.enrolledAt,
       completedAt: enrollment.completedAt,
-      progress: enrollment.progress,
+      progress: enrollment.progress || 0,
       quizScore: enrollment.quizScore,
-      certificateIssued: enrollment.certificateIssued,
+      certificateIssued: enrollment.certificateIssued || false,
       deadline: enrollment.deadline,
       status: enrollment.status,
       assignedEmail: enrollment.assignedEmail,
-      remindersSent: enrollment.remindersSent,
+      remindersSent: enrollment.remindersSent || 0,
       user: enrollment.userId ? {
         id: enrollment.userId,
         name: enrollment.userName,
         email: enrollment.userEmail,
         employeeId: enrollment.userEmployeeId,
+        clientName: enrollment.userClientName,
       } : null,
       course: {
         id: enrollment.courseId,
         title: enrollment.courseTitle,
         description: enrollment.courseDescription,
+        duration: enrollment.courseDuration || 0,
+        courseType: enrollment.courseType,
       },
     }));
   }
