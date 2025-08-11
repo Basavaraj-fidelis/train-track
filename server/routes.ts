@@ -1307,6 +1307,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug endpoint to check database data
+  app.get("/api/debug/database-check", requireAdmin, async (req, res) => {
+    try {
+      const [coursesResult, enrollmentsResult, usersResult] = await Promise.all([
+        db.select({ 
+          id: courses.id, 
+          title: courses.title, 
+          isActive: courses.isActive 
+        }).from(courses).limit(10),
+        db.select({ 
+          id: enrollments.id, 
+          courseId: enrollments.courseId, 
+          userId: enrollments.userId, 
+          assignedEmail: enrollments.assignedEmail,
+          status: enrollments.status
+        }).from(enrollments).limit(10),
+        db.select({ 
+          id: users.id, 
+          name: users.name, 
+          email: users.email 
+        }).from(users).limit(10)
+      ]);
+
+      res.json({
+        courses: coursesResult,
+        enrollments: enrollmentsResult,
+        users: usersResult,
+        counts: {
+          totalCourses: await db.select({ count: sql<number>`COUNT(*)` }).from(courses).then(r => r[0]?.count || 0),
+          totalEnrollments: await db.select({ count: sql<number>`COUNT(*)` }).from(enrollments).then(r => r[0]?.count || 0),
+          totalUsers: await db.select({ count: sql<number>`COUNT(*)` }).from(users).then(r => r[0]?.count || 0),
+        }
+      });
+    } catch (error) {
+      console.error("Debug database check failed:", error);
+      res.status(500).json({ message: "Debug check failed", error: error.message });
+    }
+  });
+
   // Get course assignments (for HR tracking)
   app.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
     try {

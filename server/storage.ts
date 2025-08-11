@@ -951,6 +951,23 @@ export class Storage {
     try {
       console.log(`Fetching assignments for course: ${courseId}`);
 
+      // First, let's check if the course exists
+      const courseExists = await db
+        .select({ id: courses.id, title: courses.title })
+        .from(courses)
+        .where(eq(courses.id, courseId))
+        .limit(1);
+
+      console.log(`Course exists check:`, courseExists);
+
+      // Check if there are any enrollments for this course at all
+      const enrollmentCount = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(enrollments)
+        .where(eq(enrollments.courseId, courseId));
+
+      console.log(`Total enrollments for course ${courseId}:`, enrollmentCount[0]?.count || 0);
+
       const result = await db
         .select({
           // Enrollment fields
@@ -981,6 +998,19 @@ export class Storage {
         .orderBy(desc(enrollments.enrolledAt));
 
       console.log(`Raw query result count: ${result.length}`);
+      
+      // Log the raw result for debugging
+      if (result.length === 0) {
+        console.log(`No enrollments found for course ${courseId}. Let's check what courses do exist:`);
+        const allCourses = await db.select({ id: courses.id, title: courses.title }).from(courses).limit(5);
+        console.log(`Sample courses in database:`, allCourses);
+        
+        const allEnrollments = await db.select({ 
+          id: enrollments.id, 
+          courseId: enrollments.courseId 
+        }).from(enrollments).limit(5);
+        console.log(`Sample enrollments in database:`, allEnrollments);
+      }
 
       // Transform the data to handle the user relation properly
       const transformedData = result.map((row, index) => {
