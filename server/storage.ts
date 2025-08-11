@@ -88,10 +88,10 @@ export class Storage {
   async deleteUser(id: string): Promise<boolean> {
     // First delete all related certificates
     await db.delete(certificates).where(eq(certificates.userId, id));
-    
+
     // Then delete all related enrollments
     await db.delete(enrollments).where(eq(enrollments.userId, id));
-    
+
     // Finally delete the user
     const result = await db.delete(users).where(eq(users.id, id));
     return result.rowCount > 0;
@@ -138,7 +138,12 @@ export class Storage {
   }
 
   async getCourse(id: string): Promise<Course | null> {
-    const [course] = await db.select().from(courses).where(eq(courses.id, id));
+    const [course] = await db
+      .select()
+      .from(courses)
+      .where(eq(courses.id, id));
+
+    console.log('Retrieved course data:', course);
     return course || null;
   }
 
