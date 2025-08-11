@@ -842,7 +842,6 @@ export default function EnhancedHRDashboard() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <div>
                             <span className="text-sm font-medium">Course Completion Rate</span>
@@ -850,14 +849,17 @@ export default function EnhancedHRDashboard() {
                           </div>
                           <div className="text-right">
                             <span className="text-lg font-bold text-green-600">
-                              {stats?.totalEmployees > 0 && stats?.certificatesIssued > 0
-                                ? Math.round(
-                                    ((stats.certificatesIssued) /
-                                      (stats.pendingAssignments + stats.certificatesIssued)) *
-                                      100,
-                                  )
-                                : 0}%
+                              {(() => {
+                                const totalAssignments = (stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0);
+                                const completedCourses = stats?.certificatesIssued || 0;
+
+                                if (totalAssignments === 0) return "0%";
+                                return `${Math.round((completedCourses / totalAssignments) * 100)}%`;
+                              })()}
                             </span>
+                            <p className="text-xs text-gray-500">
+                              {stats?.certificatesIssued || 0} of {((stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0))} assignments
+                            </p>
                           </div>
                         </div>
                         <div className="flex justify-between items-center">
@@ -870,7 +872,7 @@ export default function EnhancedHRDashboard() {
                               {stats?.pendingAssignments || 0}
                             </span>
                             <p className="text-xs text-gray-500">
-                              of {stats?.totalEmployees || 0} employees
+                              of {stats?.totalEmployees || 0} total employees
                             </p>
                           </div>
                         </div>
@@ -881,17 +883,19 @@ export default function EnhancedHRDashboard() {
                           </div>
                           <div className="text-right">
                             <span className="text-lg font-bold text-purple-600">
-                              {stats?.totalEmployees > 0
-                                ? Math.round(
-                                    (((stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0)) /
-                                      stats.totalEmployees) *
-                                      100,
-                                  )
-                                : 0}%
+                              {(() => {
+                                const totalEmployees = stats?.totalEmployees || 0;
+                                const totalAssignments = (stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0);
+
+                                if (totalEmployees === 0) return "0%";
+                                return `${Math.round((totalAssignments / totalEmployees) * 100)}%`;
+                              })()}
                             </span>
+                            <p className="text-xs text-gray-500">
+                              {((stats?.pendingAssignments || 0) + (stats?.certificatesIssued || 0))} assignments across {stats?.totalEmployees || 0} employees
+                            </p>
                           </div>
                         </div>
-                      </div>
                     </CardContent>
                   </Card>
 
