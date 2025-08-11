@@ -426,13 +426,34 @@ export class Storage {
     return enrollment || null;
   }
 
-  async updateEnrollment(id: string, enrollmentData: Partial<InsertEnrollment>): Promise<Enrollment | null> {
-    const [updatedEnrollment] = await db
+  async updateEnrollment(enrollmentId: string, updates: Partial<InsertEnrollment>) {
+    const [updated] = await this.db
       .update(enrollments)
-      .set(enrollmentData)
-      .where(eq(enrollments.id, id))
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(enrollments.id, enrollmentId))
       .returning();
-    return updatedEnrollment || null;
+
+    return updated;
+  }
+
+  async updateEnrollmentWithVideoProgress(enrollmentId: string, updates: Partial<InsertEnrollment>, videoCurrentTime?: number) {
+    const updateData: any = { ...updates, updatedAt: new Date() };
+
+    // Store video progress timestamp for resume functionality
+    if (videoCurrentTime !== undefined) {
+      updateData.videoProgressData = JSON.stringify({
+        currentTime: videoCurrentTime,
+        lastWatched: new Date().toISOString()
+      });
+    }
+
+    const [updated] = await this.db
+      .update(enrollments)
+      .set(updateData)
+      .where(eq(enrollments.id, enrollmentId))
+      .returning();
+
+    return updated;
   }
 
   async deleteEnrollment(id: string): Promise<boolean> {
@@ -563,7 +584,7 @@ export class Storage {
         description: enrollment.courseDescription,
         duration: enrollment.courseDuration,
         courseType: enrollment.courseType,
-        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+        renewalPeriodMonths: enrollment.renewalPeriodMonths,
         isComplianceCourse: enrollment.isComplianceCourse,
       } : null,
     }));

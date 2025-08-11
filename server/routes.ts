@@ -258,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!password) {
         return res.status(401).json({ message: "Password is required" });
       }
-      
+
       if (user.password) {
         const isValidPassword = await bcrypt.compare(password, user.password);
         if (!isValidPassword) {
@@ -441,9 +441,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Forgot password route accessed');
       console.log('Request body:', req.body);
-      
+
       const { email } = req.body;
-      
+
       if (!email || !email.trim()) {
         console.log('No email provided in request');
         return res.status(400).json({ message: "Email is required" });
@@ -524,7 +524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ message: "If an account with that email exists, a reset link has been sent." });
       } catch (emailError) {
         console.error("Email sending error:", emailError);
-        
+
         // Log detailed error information
         console.error("Email error details:", {
           code: emailError.code,
@@ -532,7 +532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           response: emailError.response,
           responseCode: emailError.responseCode
         });
-        
+
         // Check if it's an authentication error
         if (emailError.code === 'EAUTH' || emailError.responseCode === 535) {
           console.error("SMTP Authentication failed. Please check email credentials.");
@@ -581,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update password and clear reset token
       const hashedPassword = await bcrypt.hash(passwordToUse, 10);
-      
+
       try {
         await db.update(users)
           .set({
@@ -1244,9 +1244,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed"
       });
 
-      // Send certificate email to both user and HR
+      // Generate PDF certificate and send email with attachment
       try {
         if (user && course) {
+          // Import PDF generator
+          const { generateCertificatePDF } = await import("./pdf-generator");
+
+          // Generate PDF
+          const pdfBuffer = await generateCertificatePDF(certificateData);
+
           const certificateEmailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #2563eb; text-align: center;">Certificate of Completion</h2>
@@ -1265,27 +1271,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <p style="font-size: 16px; margin: 20px 0;">I commit to:</p>
                 <ul style="margin: 10px 0; padding-left: 20px;">
                   <li>Adhering to the guidelines provided in the training</li>
-                  <li>Applying the knowledge responsibly in my role</li>
                   <li>Maintaining a safe, respectful, and compliant work environment</li>
                 </ul>
 
                 <p style="font-style: italic; margin-top: 30px; text-align: center;">Digital Signature: ${digitalSignature}</p>
               </div>
               <p style="text-align: center; color: #666; font-size: 12px;">
-                This certificate was digitally generated and acknowledged by the participant.
+                This certificate was digitally generated and acknowledged by the participant. Please find the certificate PDF attached.
               </p>
             </div>
           `;
 
-          // Send to employee
+          // Send to employee with PDF attachment
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
             to: user.email,
             subject: `Certificate of Completion: ${course.title}`,
             html: certificateEmailHtml,
+            attachments: [{
+              filename: `Certificate_${course.title.replace(/\s+/g, '_')}_${user.name.replace(/\s+/g, '_')}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            }]
           });
 
-          // Send to HR
+          // Send to HR with PDF attachment
           await transporter.sendMail({
             from: process.env.SMTP_FROM || 'noreply@traintrack.com',
             to: process.env.SMTP_FROM || 'noreply@traintrack.com',
@@ -1308,10 +1318,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ${certificateEmailHtml}
               </div>
             `,
+            attachments: [{
+              filename: `Certificate_${course.title.replace(/\s+/g, '_')}_${user.name.replace(/\s+/g, '_')}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            }]
           });
         }
       } catch (emailError) {
-        console.error('Failed to send certificate email:', emailError);
+        console.error('Failed to send certificate email with attachment:', emailError);
       }
 
       res.json({ 

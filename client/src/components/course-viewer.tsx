@@ -78,9 +78,14 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     mutationFn: async (progress: number) => {
       if (!enrollment?.id) throw new Error("No enrollment found");
 
-      const response = await apiRequest("PUT", `/api/my-enrollments/${enrollment.id}`, {
-        progress,
-      });
+      const requestData: any = { progress };
+      
+      // Include video timestamp if available
+      if (videoRef.current && !isNaN(videoRef.current.currentTime)) {
+        requestData.videoCurrentTime = videoRef.current.currentTime;
+      }
+
+      const response = await apiRequest("PUT", `/api/my-enrollments/${enrollment.id}`, requestData);
       return response.json();
     },
     onSuccess: () => {
@@ -213,6 +218,12 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     if (videoRef.current) {
       const progress = Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100);
       setVideoProgress(progress);
+      setCurrentTime(videoRef.current.currentTime);
+
+      // Save progress every 5 seconds to avoid too many API calls
+      if (Math.floor(videoRef.current.currentTime) % 5 === 0) {
+        updateProgressMutation.mutate(progress);
+      }
 
       if (progress >= 80 && !hasWatchedVideo) {
         setHasWatchedVideo(true);
@@ -275,6 +286,17 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                   controls
                   className="w-full aspect-video rounded-lg"
                   onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={() => {
+                    // Resume from saved progress when video loads
+                    if (videoRef.current && enrollment.progress > 0 && enrollment.progress < 100) {
+                      // Calculate resume time based on progress percentage
+                      const resumeTime = (enrollment.progress / 100) * videoRef.current.duration;
+                      if (resumeTime > 5) { // Only resume if more than 5 seconds watched
+                        videoRef.current.currentTime = resumeTime;
+                        console.log(`Resuming video from ${Math.floor(resumeTime)} seconds (${enrollment.progress}% progress)`);
+                      }
+                    }
+                  }}
                   onEnded={() => {
                     setHasWatchedVideo(true);
                     updateProgressMutation.mutate(90);
