@@ -1,23 +1,12 @@
 var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-
-// server/index.ts
-import express2 from "express";
-import session from "express-session";
-import MemoryStore from "memorystore";
-import cors from "cors";
-
-// server/routes.ts
-import { createServer } from "http";
-
-// server/db.ts
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
-import { sql as sql2 } from "drizzle-orm";
 
 // shared/schema.ts
 var schema_exports = {};
@@ -46,187 +35,321 @@ import { pgTable, text, varchar, integer, timestamp, boolean, jsonb } from "driz
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-var users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  employeeId: text("employee_id").unique(),
-  email: text("email").notNull().unique(),
-  password: text("password"),
-  name: text("name").notNull(),
-  role: text("role", { enum: ["admin", "employee"] }).notNull().default("employee"),
-  designation: text("designation"),
-  department: text("department"),
-  clientName: text("client_name"),
-  phoneNumber: text("phone_number"),
-  position: text("position"),
-  joinDate: timestamp("join_date").defaultNow(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow()
-});
-var courses = pgTable("courses", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  description: text("description"),
-  videoPath: text("video_path"),
-  duration: integer("duration"),
-  // in minutes
-  createdBy: varchar("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  isActive: boolean("is_active").default(true),
-  isComplianceCourse: boolean("is_compliance_course").default(false),
-  renewalPeriodMonths: integer("renewal_period_months").default(3),
-  // 3 or 4 months
-  isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
-  // Course type for certificate expiry management
-  courseType: text("course_type", { enum: ["recurring", "one-time"] }).default("one-time"),
-  // New fields for deadline management
-  defaultDeadlineDays: integer("default_deadline_days").default(30),
-  // Default days to complete
-  reminderDays: integer("reminder_days").default(7)
-  // Days before deadline to send reminder
-});
-var quizzes = pgTable("quizzes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  courseId: varchar("course_id").references(() => courses.id).notNull(),
-  title: text("title").notNull(),
-  questions: jsonb("questions").notNull(),
-  // Array of question objects
-  passingScore: integer("passing_score").default(70),
-  createdAt: timestamp("created_at").defaultNow()
-});
-var enrollments = pgTable("enrollments", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  courseId: varchar("course_id").references(() => courses.id).notNull(),
-  enrolledAt: timestamp("enrolled_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
-  progress: integer("progress").default(0),
-  // percentage 0-100
-  quizScore: integer("quiz_score"),
-  certificateIssued: boolean("certificate_issued").default(false),
-  // New fields for bulk email assignment
-  assignedEmail: text("assigned_email"),
-  // Email assigned before user creation
-  assignmentToken: text("assignment_token"),
-  // Unique token for email access
-  deadline: timestamp("deadline"),
-  // Course completion deadline
-  status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
-  remindersSent: integer("reminders_sent").default(0),
-  // Compliance tracking
-  expiresAt: timestamp("expires_at"),
-  // When the certification expires
-  isExpired: boolean("is_expired").default(false),
-  renewalCount: integer("renewal_count").default(0)
-  // Track how many times renewed
-});
-var certificates = pgTable("certificates", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  courseId: varchar("course_id").references(() => courses.id).notNull(),
-  enrollmentId: varchar("enrollment_id").references(() => enrollments.id).notNull(),
-  issuedAt: timestamp("issued_at").defaultNow(),
-  certificateData: jsonb("certificate_data"),
-  // Certificate details for PDF generation
-  digitalSignature: text("digital_signature"),
-  // User's digital signature
-  acknowledgedAt: timestamp("acknowledged_at")
-  // When user acknowledged completion
-});
-var usersRelations = relations(users, ({ many }) => ({
-  enrollments: many(enrollments),
-  certificates: many(certificates),
-  createdCourses: many(courses)
-}));
-var coursesRelations = relations(courses, ({ one, many }) => ({
-  creator: one(users, {
-    fields: [courses.createdBy],
-    references: [users.id]
-  }),
-  enrollments: many(enrollments),
-  quizzes: many(quizzes),
-  certificates: many(certificates)
-}));
-var enrollmentsRelations = relations(enrollments, ({ one }) => ({
-  user: one(users, {
-    fields: [enrollments.userId],
-    references: [users.id]
-  }),
-  course: one(courses, {
-    fields: [enrollments.courseId],
-    references: [courses.id]
-  })
-}));
-var quizzesRelations = relations(quizzes, ({ one }) => ({
-  course: one(courses, {
-    fields: [quizzes.courseId],
-    references: [courses.id]
-  })
-}));
-var certificatesRelations = relations(certificates, ({ one }) => ({
-  user: one(users, {
-    fields: [certificates.userId],
-    references: [users.id]
-  }),
-  course: one(courses, {
-    fields: [certificates.courseId],
-    references: [courses.id]
-  }),
-  enrollment: one(enrollments, {
-    fields: [certificates.enrollmentId],
-    references: [enrollments.id]
-  })
-}));
-var insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true
-});
-var insertCourseSchema = createInsertSchema(courses).omit({
-  id: true,
-  createdAt: true
-});
-var insertQuizSchema = createInsertSchema(quizzes).omit({
-  id: true,
-  createdAt: true
-});
-var insertEnrollmentSchema = createInsertSchema(enrollments).omit({
-  id: true,
-  enrolledAt: true
-});
-var insertCertificateSchema = createInsertSchema(certificates).omit({
-  id: true,
-  issuedAt: true
-});
-var bulkAssignCourseSchema = z.object({
-  courseId: z.string(),
-  userIds: z.array(z.string()).min(1, "At least one user must be selected")
-});
-var bulkAssignUsersSchema = z.object({
-  userIds: z.array(z.string()).min(1, "At least one user must be selected"),
-  courseIds: z.array(z.string()).min(1, "At least one course must be selected")
-});
-var bulkEmailAssignmentSchema = z.object({
-  courseId: z.string(),
-  emails: z.array(z.string().email()).min(1, "At least one email must be provided"),
-  deadlineDays: z.number().min(1).max(365).default(30)
+var users, courses, quizzes, enrollments, certificates, usersRelations, coursesRelations, enrollmentsRelations, quizzesRelations, certificatesRelations, insertUserSchema, insertCourseSchema, insertQuizSchema, insertEnrollmentSchema, insertCertificateSchema, bulkAssignCourseSchema, bulkAssignUsersSchema, bulkEmailAssignmentSchema;
+var init_schema = __esm({
+  "shared/schema.ts"() {
+    "use strict";
+    users = pgTable("users", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      employeeId: text("employee_id").unique(),
+      email: text("email").notNull().unique(),
+      password: text("password"),
+      name: text("name").notNull(),
+      role: text("role", { enum: ["admin", "employee"] }).notNull().default("employee"),
+      designation: text("designation"),
+      department: text("department"),
+      clientName: text("client_name"),
+      phoneNumber: text("phone_number"),
+      position: text("position"),
+      joinDate: timestamp("join_date").defaultNow(),
+      isActive: boolean("is_active").default(true),
+      createdAt: timestamp("created_at").defaultNow()
+    });
+    courses = pgTable("courses", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      title: text("title").notNull(),
+      description: text("description"),
+      videoPath: text("video_path"),
+      youtubeUrl: text("youtube_url"),
+      duration: integer("duration"),
+      // in minutes
+      createdBy: varchar("created_by").references(() => users.id),
+      createdAt: timestamp("created_at").defaultNow(),
+      isActive: boolean("is_active").default(true),
+      isComplianceCourse: boolean("is_compliance_course").default(false),
+      renewalPeriodMonths: integer("renewal_period_months").default(3),
+      // 3 or 4 months
+      isAutoEnrollNewEmployees: boolean("is_auto_enroll_new_employees").default(false),
+      // Course type for certificate expiry management
+      courseType: text("course_type", { enum: ["recurring", "one-time"] }).default("one-time"),
+      // New fields for deadline management
+      defaultDeadlineDays: integer("default_deadline_days").default(30),
+      // Default days to complete
+      reminderDays: integer("reminder_days").default(7),
+      // Days before deadline to send reminder
+      // Embedded questions for courses
+      questions: jsonb("questions")
+      // Array of question objects
+    });
+    quizzes = pgTable("quizzes", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      courseId: varchar("course_id").references(() => courses.id).notNull(),
+      title: text("title").notNull(),
+      questions: jsonb("questions").notNull(),
+      // Array of question objects
+      passingScore: integer("passing_score").default(70),
+      createdAt: timestamp("created_at").defaultNow()
+    });
+    enrollments = pgTable("enrollments", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id),
+      courseId: varchar("course_id").references(() => courses.id).notNull(),
+      enrolledAt: timestamp("enrolled_at").defaultNow(),
+      completedAt: timestamp("completed_at"),
+      progress: integer("progress").default(0),
+      // percentage 0-100
+      quizScore: integer("quiz_score"),
+      certificateIssued: boolean("certificate_issued").default(false),
+      // New fields for bulk email assignment
+      assignedEmail: text("assigned_email"),
+      // Email assigned before user creation
+      assignmentToken: text("assignment_token"),
+      // Unique token for email access
+      deadline: timestamp("deadline"),
+      // Course completion deadline
+      status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
+      remindersSent: integer("reminders_sent").default(0),
+      // Compliance tracking
+      expiresAt: timestamp("expires_at"),
+      // When the certification expires
+      isExpired: boolean("is_expired").default(false),
+      renewalCount: integer("renewal_count").default(0)
+      // Track how many times renewed
+    });
+    certificates = pgTable("certificates", {
+      id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+      userId: varchar("user_id").references(() => users.id).notNull(),
+      courseId: varchar("course_id").references(() => courses.id).notNull(),
+      enrollmentId: varchar("enrollment_id").references(() => enrollments.id).notNull(),
+      issuedAt: timestamp("issued_at").defaultNow(),
+      certificateData: jsonb("certificate_data"),
+      // Certificate details for PDF generation
+      digitalSignature: text("digital_signature"),
+      // User's digital signature
+      acknowledgedAt: timestamp("acknowledged_at")
+      // When user acknowledged completion
+    });
+    usersRelations = relations(users, ({ many }) => ({
+      enrollments: many(enrollments),
+      certificates: many(certificates),
+      createdCourses: many(courses)
+    }));
+    coursesRelations = relations(courses, ({ one, many }) => ({
+      creator: one(users, {
+        fields: [courses.createdBy],
+        references: [users.id]
+      }),
+      enrollments: many(enrollments),
+      quizzes: many(quizzes),
+      certificates: many(certificates)
+    }));
+    enrollmentsRelations = relations(enrollments, ({ one }) => ({
+      user: one(users, {
+        fields: [enrollments.userId],
+        references: [users.id]
+      }),
+      course: one(courses, {
+        fields: [enrollments.courseId],
+        references: [courses.id]
+      })
+    }));
+    quizzesRelations = relations(quizzes, ({ one }) => ({
+      course: one(courses, {
+        fields: [quizzes.courseId],
+        references: [courses.id]
+      })
+    }));
+    certificatesRelations = relations(certificates, ({ one }) => ({
+      user: one(users, {
+        fields: [certificates.userId],
+        references: [users.id]
+      }),
+      course: one(courses, {
+        fields: [certificates.courseId],
+        references: [courses.id]
+      }),
+      enrollment: one(enrollments, {
+        fields: [certificates.enrollmentId],
+        references: [enrollments.id]
+      })
+    }));
+    insertUserSchema = createInsertSchema(users).omit({
+      id: true,
+      createdAt: true
+    });
+    insertCourseSchema = createInsertSchema(courses).omit({
+      id: true,
+      createdAt: true
+    });
+    insertQuizSchema = createInsertSchema(quizzes).omit({
+      id: true,
+      createdAt: true
+    });
+    insertEnrollmentSchema = createInsertSchema(enrollments).omit({
+      id: true,
+      enrolledAt: true
+    });
+    insertCertificateSchema = createInsertSchema(certificates).omit({
+      id: true,
+      issuedAt: true
+    });
+    bulkAssignCourseSchema = z.object({
+      courseId: z.string(),
+      userIds: z.array(z.string()).min(1, "At least one user must be selected")
+    });
+    bulkAssignUsersSchema = z.object({
+      userIds: z.array(z.string()).min(1, "At least one user must be selected"),
+      courseIds: z.array(z.string()).min(1, "At least one course must be selected")
+    });
+    bulkEmailAssignmentSchema = z.object({
+      courseId: z.string(),
+      emails: z.array(z.string().email()).min(1, "At least one email must be provided"),
+      deadlineDays: z.number().min(1).max(365).default(30)
+    });
+  }
 });
 
 // server/db.ts
-neonConfig.webSocketConstructor = ws;
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?"
-  );
+var db_exports = {};
+__export(db_exports, {
+  createTables: () => createTables,
+  db: () => db,
+  pool: () => pool,
+  resetDatabase: () => resetDatabase
+});
+import pkg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { sql as sql2 } from "drizzle-orm";
+async function resetDatabase() {
+  try {
+    console.log("Starting database reset...");
+    await db.execute(sql2`DROP TABLE IF EXISTS certificates CASCADE`);
+    await db.execute(sql2`DROP TABLE IF EXISTS enrollments CASCADE`);
+    await db.execute(sql2`DROP TABLE IF EXISTS quizzes CASCADE`);
+    await db.execute(sql2`DROP TABLE IF EXISTS courses CASCADE`);
+    await db.execute(sql2`DROP TABLE IF EXISTS users CASCADE`);
+    console.log("All tables dropped successfully");
+    await createTables();
+    console.log("Database reset completed successfully");
+    return true;
+  } catch (error) {
+    console.error("Database reset failed:", error);
+    throw error;
+  }
 }
-var pool = new Pool({ connectionString: process.env.DATABASE_URL });
-var db = drizzle({ client: pool, schema: schema_exports });
+async function createTables() {
+  try {
+    console.log("Creating tables...");
+    await db.execute(sql2`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        employee_id TEXT UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('admin', 'employee')),
+        designation TEXT,
+        department TEXT,
+        client_name TEXT,
+        phone_number TEXT,
+        position TEXT,
+        join_date TIMESTAMP DEFAULT NOW(),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql2`
+      CREATE TABLE IF NOT EXISTS courses (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        description TEXT,
+        video_path TEXT,
+        youtube_url TEXT,
+        duration INTEGER,
+        created_by VARCHAR REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        is_active BOOLEAN DEFAULT true,
+        is_compliance_course BOOLEAN DEFAULT false,
+        renewal_period_months INTEGER DEFAULT 3,
+        is_auto_enroll_new_employees BOOLEAN DEFAULT false,
+        course_type TEXT DEFAULT 'one-time' CHECK (course_type IN ('recurring', 'one-time')),
+        default_deadline_days INTEGER DEFAULT 30,
+        reminder_days INTEGER DEFAULT 7,
+        questions JSONB
+      )
+    `);
+    await db.execute(sql2`
+      CREATE TABLE IF NOT EXISTS quizzes (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id VARCHAR REFERENCES courses(id) NOT NULL,
+        title TEXT NOT NULL,
+        questions JSONB NOT NULL,
+        passing_score INTEGER DEFAULT 70,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql2`
+      CREATE TABLE IF NOT EXISTS enrollments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id),
+        course_id VARCHAR REFERENCES courses(id) NOT NULL,
+        enrolled_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        progress INTEGER DEFAULT 0,
+        quiz_score INTEGER,
+        certificate_issued BOOLEAN DEFAULT false,
+        assigned_email TEXT,
+        assignment_token TEXT,
+        deadline TIMESTAMP,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accessed', 'completed', 'expired')),
+        reminders_sent INTEGER DEFAULT 0,
+        expires_at TIMESTAMP,
+        is_expired BOOLEAN DEFAULT false,
+        renewal_count INTEGER DEFAULT 0,
+        last_accessed_at TIMESTAMP
+      )
+    `);
+    await db.execute(sql2`
+      CREATE TABLE IF NOT EXISTS certificates (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id) NOT NULL,
+        course_id VARCHAR REFERENCES courses(id) NOT NULL,
+        enrollment_id VARCHAR REFERENCES enrollments(id) NOT NULL,
+        issued_at TIMESTAMP DEFAULT NOW(),
+        certificate_data JSONB,
+        digital_signature TEXT,
+        acknowledged_at TIMESTAMP
+      )
+    `);
+    console.log("All tables created successfully");
+  } catch (error) {
+    console.error("Table creation failed:", error);
+    throw error;
+  }
+}
 async function ensureSchemaUpdates() {
   try {
+    if (process.env.RESET_DATABASE === "true") {
+      console.log("RESET_DATABASE flag detected, resetting database...");
+      await resetDatabase();
+      return;
+    }
+    const tablesExist = await db.execute(sql2`
+      SELECT COUNT(*) as count FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = 'users'
+    `);
+    if (tablesExist[0]?.count === 0) {
+      console.log("Tables do not exist, creating initial schema...");
+      await createTables();
+      return;
+    }
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS course_type text DEFAULT 'one-time'`);
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS renewal_period_months integer DEFAULT 3`);
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_compliance_course boolean DEFAULT false`);
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_auto_enroll_new_employees boolean DEFAULT false`);
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS default_deadline_days integer DEFAULT 30`);
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS reminder_days integer DEFAULT 7`);
+    await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS questions jsonb`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS expires_at timestamp`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_expired boolean DEFAULT false`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0`);
@@ -234,22 +357,49 @@ async function ensureSchemaUpdates() {
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
-    await db.execute(sql2`
-      ALTER TABLE enrollments 
-      ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0 NOT NULL
-    `);
-    await db.execute(sql2`
-      ALTER TABLE courses 
-      ADD COLUMN IF NOT EXISTS youtube_url TEXT
-    `);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
+    await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS youtube_url TEXT`);
     console.log("Database schema updates completed successfully");
   } catch (error) {
     console.error("Schema update error:", error);
   }
 }
-ensureSchemaUpdates();
+var Pool, pool, db;
+var init_db = __esm({
+  "server/db.ts"() {
+    "use strict";
+    init_schema();
+    ({ Pool } = pkg);
+    if (!process.env.DATABASE_URL) {
+      throw new Error(
+        "DATABASE_URL must be set. Did you forget to provision a database?"
+      );
+    }
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+        sslmode: "require"
+      }
+    });
+    db = drizzle({ client: pool, schema: schema_exports });
+    ensureSchemaUpdates();
+  }
+});
+
+// server/index.ts
+import express2 from "express";
+import session from "express-session";
+import MemoryStore from "memorystore";
+import cors from "cors";
+
+// server/routes.ts
+import { createServer } from "http";
 
 // server/storage.ts
+init_db();
+init_schema();
 import { eq, and, sql as sql3, desc, asc, lt, gte, count, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
@@ -555,7 +705,8 @@ var Storage = class {
       courseId: enrollment.courseId,
       enrolledAt: enrollment.enrolledAt,
       completedAt: enrollment.completedAt,
-      progress: enrollment.progress,
+      progress: enrollment.certificateIssued ? 100 : enrollment.progress || 0,
+      // Show 100% if certificate issued
       quizScore: enrollment.quizScore,
       certificateIssued: enrollment.certificateIssued,
       expiresAt: enrollment.expiresAt,
@@ -564,7 +715,7 @@ var Storage = class {
       assignedEmail: enrollment.assignedEmail,
       assignmentToken: enrollment.assignmentToken,
       deadline: enrollment.deadline,
-      status: enrollment.status,
+      status: enrollment.certificateIssued ? "completed" : enrollment.status || "pending",
       remindersSent: enrollment.remindersSent,
       lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
       course: enrollment.courseId2 ? {
@@ -677,38 +828,46 @@ var Storage = class {
   async getCourseEnrollments(courseId) {
     try {
       const enrollmentsData = await db.select({
+        // Enrollment fields
         id: enrollments.id,
         userId: enrollments.userId,
         courseId: enrollments.courseId,
         enrolledAt: enrollments.enrolledAt,
-        progress: sql3`COALESCE(${enrollments.progress}, 0)`.as("progress"),
+        progress: enrollments.progress,
         completedAt: enrollments.completedAt,
-        certificateIssued: sql3`COALESCE(${enrollments.certificateIssued}, false)`.as("certificateIssued"),
+        certificateIssued: enrollments.certificateIssued,
         assignedEmail: enrollments.assignedEmail,
-        // User fields with safe defaults
+        // User fields
         userName: users.name,
         userEmail: users.email,
         userDepartment: users.department,
         userClientName: users.clientName,
         userIdFromTable: users.id
       }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId));
-      const transformedData = enrollmentsData.map((enrollment) => ({
-        id: enrollment.id || `temp-${Date.now()}`,
-        userId: enrollment.userId || null,
-        courseId: enrollment.courseId || courseId,
-        enrolledAt: enrollment.enrolledAt || null,
-        progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
-        completedAt: enrollment.completedAt || null,
-        certificateIssued: Boolean(enrollment.certificateIssued),
-        assignedEmail: enrollment.assignedEmail || "",
-        user: enrollment.userIdFromTable ? {
-          id: enrollment.userIdFromTable,
-          name: enrollment.userName || "Not registered",
-          email: enrollment.userEmail || enrollment.assignedEmail || "",
-          department: enrollment.userDepartment || "N/A",
-          clientName: enrollment.userClientName || "N/A"
-        } : null
-      }));
+      const transformedData = enrollmentsData.map((enrollment, index) => {
+        try {
+          return {
+            id: enrollment.id || `temp-${Date.now()}-${index}`,
+            userId: enrollment.userId || null,
+            courseId: enrollment.courseId || courseId,
+            enrolledAt: enrollment.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+            completedAt: enrollment.completedAt || null,
+            certificateIssued: Boolean(enrollment.certificateIssued),
+            assignedEmail: enrollment.assignedEmail || "",
+            user: enrollment.userIdFromTable ? {
+              id: enrollment.userIdFromTable,
+              name: enrollment.userName || "Not registered",
+              email: enrollment.userEmail || enrollment.assignedEmail || "",
+              department: enrollment.userDepartment || "N/A",
+              clientName: enrollment.userClientName || "N/A"
+            } : null
+          };
+        } catch (transformError) {
+          console.error(`Error transforming enrollment at index ${index}:`, transformError);
+          return null;
+        }
+      }).filter(Boolean);
       return transformedData;
     } catch (error) {
       console.error(`Error retrieving course enrollments for ${courseId}:`, error);
@@ -932,54 +1091,60 @@ var Storage = class {
   async getCourseAssignments(courseId) {
     try {
       console.log(`Fetching assignments for course: ${courseId}`);
-      const enrollmentsData = await db.select({
-        // Enrollment fields - use sql`` to ensure fields are not null
+      const result = await db.select({
+        // Enrollment fields
         id: enrollments.id,
-        userId: enrollments.userId,
         courseId: enrollments.courseId,
-        enrolledAt: enrollments.enrolledAt,
-        progress: sql3`COALESCE(${enrollments.progress}, 0)`.as("progress"),
-        completedAt: enrollments.completedAt,
-        certificateIssued: sql3`COALESCE(${enrollments.certificateIssued}, false)`.as("certificateIssued"),
+        userId: enrollments.userId,
         assignedEmail: enrollments.assignedEmail,
+        enrolledAt: enrollments.enrolledAt,
+        progress: enrollments.progress,
         quizScore: enrollments.quizScore,
-        remindersSent: sql3`COALESCE(${enrollments.remindersSent}, 0)`.as("remindersSent"),
+        certificateIssued: enrollments.certificateIssued,
+        remindersSent: enrollments.remindersSent,
         deadline: enrollments.deadline,
-        status: sql3`COALESCE(${enrollments.status}, 'pending')`.as("status"),
-        lastAccessedAt: enrollments.lastAccessedAt,
+        status: enrollments.status,
+        completedAt: enrollments.completedAt,
         assignmentToken: enrollments.assignmentToken,
-        // User fields with null checks
+        lastAccessedAt: enrollments.lastAccessedAt,
+        // User fields
+        userIdFromJoin: users.id,
         userName: users.name,
         userEmail: users.email,
         userDepartment: users.department,
-        userClientName: users.clientName,
-        userIdFromTable: users.id
-      }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId));
-      const transformedData = enrollmentsData.map((enrollment) => {
-        return {
-          id: enrollment.id || `temp-${Date.now()}`,
-          userId: enrollment.userId || null,
-          courseId: enrollment.courseId || courseId,
-          enrolledAt: enrollment.enrolledAt || null,
-          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
-          completedAt: enrollment.completedAt || null,
-          certificateIssued: Boolean(enrollment.certificateIssued),
-          assignedEmail: enrollment.assignedEmail || "",
-          quizScore: enrollment.quizScore ? Number(enrollment.quizScore) : null,
-          remindersSent: Math.max(0, Number(enrollment.remindersSent) || 0),
-          deadline: enrollment.deadline || null,
-          status: enrollment.status || "pending",
-          lastAccessedAt: enrollment.lastAccessedAt || null,
-          assignmentToken: enrollment.assignmentToken || null,
-          user: enrollment.userIdFromTable ? {
-            id: enrollment.userIdFromTable,
-            name: enrollment.userName || "Not registered",
-            email: enrollment.userEmail || enrollment.assignedEmail || "",
-            department: enrollment.userDepartment || "N/A",
-            clientName: enrollment.userClientName || "N/A"
-          } : null
-        };
-      });
+        userClientName: users.clientName
+      }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId)).orderBy(desc(enrollments.enrolledAt));
+      console.log(`Raw query result count: ${result.length}`);
+      const transformedData = result.map((row, index) => {
+        try {
+          return {
+            id: row.id || `temp-${Date.now()}-${index}`,
+            courseId: row.courseId || courseId,
+            userId: row.userId || null,
+            assignedEmail: row.assignedEmail || "",
+            enrolledAt: row.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(row.progress) || 0)),
+            quizScore: row.quizScore ? Number(row.quizScore) : null,
+            certificateIssued: Boolean(row.certificateIssued),
+            remindersSent: Math.max(0, Number(row.remindersSent) || 0),
+            deadline: row.deadline || null,
+            status: row.status || "pending",
+            completedAt: row.completedAt || null,
+            assignmentToken: row.assignmentToken || null,
+            lastAccessedAt: row.lastAccessedAt || null,
+            user: row.userIdFromJoin ? {
+              id: row.userIdFromJoin,
+              name: row.userName || "Not registered",
+              email: row.userEmail || row.assignedEmail || "",
+              department: row.userDepartment || "N/A",
+              clientName: row.userClientName || "N/A"
+            } : null
+          };
+        } catch (transformError) {
+          console.error(`Error transforming assignment at index ${index}:`, transformError);
+          return null;
+        }
+      }).filter(Boolean);
       console.log(`Found ${transformedData.length} assignments for course ${courseId}`);
       return transformedData;
     } catch (error) {
@@ -1059,6 +1224,7 @@ var Storage = class {
 var storage = new Storage();
 
 // server/routes.ts
+init_schema();
 import { z as z2 } from "zod";
 import bcrypt2 from "bcrypt";
 import multer from "multer";
@@ -1125,6 +1291,46 @@ async function registerRoutes(app2) {
     return false;
   };
   await checkDatabaseHealth();
+  app2.post("/api/admin/reset-database", async (req, res) => {
+    try {
+      const { resetKey } = req.body;
+      if (resetKey !== "RESET_TRAINTRACK_DB_2025") {
+        return res.status(403).json({ message: "Invalid reset key" });
+      }
+      const { resetDatabase: resetDatabase2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+      await resetDatabase2();
+      const hashedPassword = await bcrypt2.hash("admin123", 10);
+      const adminUser = await storage.createUser({
+        employeeId: "ADMIN001",
+        email: "admin@traintrack.com",
+        name: "Administrator",
+        role: "admin",
+        designation: "System Administrator",
+        department: "IT",
+        clientName: "TrainTrack",
+        phoneNumber: "+1-555-0100",
+        password: hashedPassword,
+        isActive: true
+      });
+      console.log("Database reset completed and admin user created");
+      res.json({
+        success: true,
+        message: "Database reset successfully and admin user created",
+        adminUser: {
+          id: adminUser.id,
+          email: adminUser.email,
+          name: adminUser.name,
+          role: adminUser.role
+        }
+      });
+    } catch (error) {
+      console.error("Database reset error:", error);
+      res.status(500).json({
+        message: "Failed to reset database",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
+    }
+  });
   const cleanupExpiredAssignments = async () => {
     try {
       const expiredCount = await storage.cleanupExpiredAssignments();
@@ -1147,6 +1353,8 @@ async function registerRoutes(app2) {
       if (username === "admin" && password === "admin123") {
         let adminUser = await storage.getUserByEmail("admin@traintrack.com");
         if (!adminUser) {
+          console.log("Creating default admin user...");
+          const hashedPassword = await bcrypt2.hash("admin123", 10);
           adminUser = await storage.createUser({
             employeeId: "ADMIN001",
             email: "admin@traintrack.com",
@@ -1156,18 +1364,39 @@ async function registerRoutes(app2) {
             department: "IT",
             clientName: "TrainTrack",
             phoneNumber: "+1-555-0100",
-            password: await bcrypt2.hash("admin123", 10)
+            password: hashedPassword,
+            isActive: true
           });
+          console.log("Admin user created successfully");
+        }
+        if (adminUser.password) {
+          const isValidPassword = await bcrypt2.compare("admin123", adminUser.password);
+          if (!isValidPassword) {
+            return res.status(401).json({ message: "Invalid credentials" });
+          }
         }
         req.session.userId = adminUser.id;
         req.session.userRole = "admin";
-        res.json({ success: true, user: adminUser });
+        console.log("Admin login successful:", { userId: adminUser.id, email: adminUser.email });
+        res.json({
+          success: true,
+          user: {
+            id: adminUser.id,
+            email: adminUser.email,
+            name: adminUser.name,
+            role: adminUser.role,
+            employeeId: adminUser.employeeId
+          }
+        });
       } else {
         res.status(401).json({ message: "Invalid credentials" });
       }
     } catch (error) {
       console.error("Admin login error:", error);
-      res.status(500).json({ message: "Login failed" });
+      res.status(500).json({
+        message: "Login failed",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
     }
   });
   app2.post("/api/auth/employee-login", async (req, res) => {
@@ -1697,10 +1926,11 @@ async function registerRoutes(app2) {
       console.log("Quiz validation:", { passingScore, isPassing, currentScore: score });
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: isPassing ? 95 : 90,
-        // Mark as 95% if passing (awaiting acknowledgment), 90% if not passing
-        completedAt: null
+        progress: isPassing ? 95 : Math.min(90, enrollment.progress || 0),
+        // Mark as 95% if passing (awaiting acknowledgment), keep existing progress if not passing
+        completedAt: null,
         // Don't mark completed until certificate is acknowledged
+        status: isPassing ? "accessed" : "pending"
       });
       let certificate = null;
       console.log("Quiz passed - awaiting acknowledgment for certificate generation");
@@ -1792,7 +2022,8 @@ async function registerRoutes(app2) {
         // Set progress to 100% when certificate is generated
         completedAt: /* @__PURE__ */ new Date(),
         expiresAt,
-        isExpired: false
+        isExpired: false,
+        status: "completed"
       });
       try {
         if (user && course) {
@@ -2104,13 +2335,45 @@ async function registerRoutes(app2) {
       }
       const assignments = await storage.getCourseAssignments(courseId);
       console.log(`Found ${assignments.length} assignments for course ${courseId}`);
-      const validAssignments = Array.isArray(assignments) ? assignments : [];
-      res.json(validAssignments);
+      const validAssignments = Array.isArray(assignments) ? assignments.filter((a) => a && typeof a === "object") : [];
+      const sanitizedAssignments = validAssignments.map((assignment, index) => {
+        try {
+          return {
+            id: assignment.id || `fallback-${Date.now()}-${index}`,
+            courseId: assignment.courseId || courseId,
+            userId: assignment.userId || null,
+            assignedEmail: String(assignment.assignedEmail || "").trim(),
+            enrolledAt: assignment.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(assignment.progress) || 0)),
+            quizScore: assignment.quizScore ? Number(assignment.quizScore) : null,
+            certificateIssued: Boolean(assignment.certificateIssued),
+            remindersSent: Math.max(0, Number(assignment.remindersSent) || 0),
+            deadline: assignment.deadline || null,
+            status: assignment.status || "pending",
+            completedAt: assignment.completedAt || null,
+            assignmentToken: assignment.assignmentToken || null,
+            lastAccessedAt: assignment.lastAccessedAt || null,
+            user: assignment.user && typeof assignment.user === "object" ? {
+              id: assignment.user.id || null,
+              name: String(assignment.user.name || "Not registered").trim(),
+              email: String(assignment.user.email || assignment.assignedEmail || "").trim(),
+              department: String(assignment.user.department || "N/A").trim(),
+              clientName: String(assignment.user.clientName || "N/A").trim()
+            } : null
+          };
+        } catch (sanitizeError) {
+          console.error(`Error sanitizing assignment at index ${index}:`, sanitizeError);
+          return null;
+        }
+      }).filter(Boolean);
+      console.log(`Returning ${sanitizedAssignments.length} valid assignments`);
+      res.json(sanitizedAssignments);
     } catch (error) {
       console.error("Error fetching course assignments:", error);
       res.status(500).json({
         message: "Failed to fetch assignments",
-        error: process.env.NODE_ENV === "development" ? error?.message : void 0
+        error: process.env.NODE_ENV === "development" ? error?.message : void 0,
+        courseId: req.params.courseId
       });
     }
   });
