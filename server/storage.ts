@@ -463,75 +463,41 @@ export class Storage {
 
   async getUserEnrollments(userId: string): Promise<any[]> {
     try {
+      console.log(`Fetching enrollments for user: ${userId}`);
+
       const results = await db
-        .select({
-          // Enrollment fields
-          id: enrollments.id,
-          userId: enrollments.userId,
-          courseId: enrollments.courseId,
-          enrolledAt: enrollments.enrolledAt,
-          completedAt: enrollments.completedAt,
-          progress: enrollments.progress,
-          quizScore: enrollments.quizScore,
-          certificateIssued: enrollments.certificateIssued,
-          expiresAt: enrollments.expiresAt,
-          isExpired: enrollments.isExpired,
-          renewalCount: enrollments.renewalCount,
-          assignedEmail: enrollments.assignedEmail,
-          assignmentToken: enrollments.assignmentToken,
-          deadline: enrollments.deadline,
-          status: enrollments.status,
-          remindersSent: enrollments.remindersSent,
-          lastAccessedAt: enrollments.completedAt,
-          // Course fields
-          courseId2: courses.id,
-          courseTitle: courses.title,
-          courseDescription: courses.description,
-          courseDuration: courses.duration,
-          courseVideoPath: courses.videoPath,
-          courseType: courses.courseType,
-          courseRenewalPeriodMonths: courses.renewalPeriodMonths,
-          courseIsComplianceCourse: courses.isComplianceCourse,
-          courseIsActive: courses.isActive,
-        })
+        .select()
         .from(enrollments)
         .leftJoin(courses, eq(enrollments.courseId, courses.id))
-        .where(and(
-          eq(enrollments.userId, userId),
-          eq(courses.isActive, true) // Only active courses
-        ))
-        .orderBy(enrollments.enrolledAt);
+        .where(eq(enrollments.userId, userId));
 
-      return results.map(enrollment => ({
-        id: enrollment.id,
-        userId: enrollment.userId,
-        courseId: enrollment.courseId,
-        enrolledAt: enrollment.enrolledAt,
-        completedAt: enrollment.completedAt,
-        progress: enrollment.progress || 0,
-        quizScore: enrollment.quizScore,
-        certificateIssued: enrollment.certificateIssued || false,
-        expiresAt: enrollment.expiresAt,
-        isExpired: enrollment.isExpired || false,
-        renewalCount: enrollment.renewalCount || 0,
-        assignedEmail: enrollment.assignedEmail,
-        assignmentToken: enrollment.assignmentToken,
-        deadline: enrollment.deadline,
-        status: enrollment.status || 'pending',
-        remindersSent: enrollment.remindersSent || 0,
-        lastAccessedAt: enrollment.lastAccessedAt || enrollment.enrolledAt,
-        course: enrollment.courseId2 ? {
-          id: enrollment.courseId2,
-          title: enrollment.courseTitle,
-          description: enrollment.courseDescription,
-          duration: enrollment.courseDuration || 0,
-          videoPath: enrollment.courseVideoPath,
-          courseType: enrollment.courseType,
-          renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
-          isComplianceCourse: enrollment.courseIsComplianceCourse,
-          isActive: enrollment.courseIsActive,
-        } : null,
-      })).filter(enrollment => enrollment.course); // Filter out enrollments without valid courses
+      console.log(`Found enrollments: ${results.length}`);
+
+      // Transform the results to match the expected format
+      const formattedResults = results.map(result => {
+        const enrollment = result.enrollments;
+        const course = result.courses;
+
+        return {
+          ...enrollment,
+          course: course ? {
+            id: course.id,
+            title: course.title,
+            description: course.description,
+            videoPath: course.videoPath,
+            youtubeUrl: course.youtubeUrl,
+            duration: course.duration,
+            courseType: course.courseType,
+            questions: course.questions,
+            isActive: course.isActive,
+            createdAt: course.createdAt,
+            createdBy: course.createdBy,
+            renewalPeriodMonths: course.renewalPeriodMonths
+          } : null
+        };
+      });
+
+      return formattedResults || [];
     } catch (error) {
       console.error('Database error in getUserEnrollments:', error);
       return [];
