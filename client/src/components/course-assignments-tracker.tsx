@@ -137,16 +137,17 @@ export default function CourseAssignmentsTracker({
   };
 
   const pendingCount = assignments?.filter(assignment => 
+    assignment && 
     !assignment.certificateIssued && 
     assignment.status !== "expired" &&
     (!assignment.completedAt || assignment.progress < 100)
   )?.length || 0;
   const completedCount = assignments?.filter((a: any) => 
-    a.certificateIssued || (a.completedAt && a.progress >= 100)
+    a && (a.certificateIssued || (a.completedAt && a.progress >= 100))
   )?.length || 0;
   const expiredCount = assignments?.filter((a: any) => 
-    a.status === "expired" || 
-    (a.deadline && new Date(a.deadline) < new Date() && !a.certificateIssued)
+    a && (a.status === "expired" || 
+    (a.deadline && new Date(a.deadline) < new Date() && !a.certificateIssued))
   )?.length || 0;
 
   return (
@@ -240,15 +241,15 @@ export default function CourseAssignmentsTracker({
                 </TableHeader>
                 <TableBody>
                   {assignments.map((assignment: any, index: number) => {
-                    if (!assignment) {
-                      console.warn(`Skipping null assignment at index ${index}`);
+                    if (!assignment || typeof assignment !== 'object') {
+                      console.warn(`Skipping invalid assignment at index ${index}:`, assignment);
                       return null;
                     }
                     
                     const userEmail = assignment.assignedEmail || assignment.user?.email || "N/A";
                     const userName = assignment.user?.name || "Not registered";
                     const clientName = assignment.user?.clientName || "N/A";
-                    const progress = Math.max(0, Math.min(100, assignment.progress || 0));
+                    const progress = Math.max(0, Math.min(100, Number(assignment.progress) || 0));
                     
                     try {
                       return (
@@ -285,7 +286,7 @@ export default function CourseAssignmentsTracker({
                               <span className="text-sm text-gray-600">{progress}%</span>
                             </div>
                           </TableCell>
-                          <TableCell>{assignment.remindersSent || 0}</TableCell>
+                          <TableCell>{Number(assignment.remindersSent) || 0}</TableCell>
                         </TableRow>
                       );
                     } catch (renderError) {
