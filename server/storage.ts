@@ -614,43 +614,51 @@ export class Storage {
     try {
       const enrollmentsData = await db
         .select({
-          id: enrollments.id,
-          userId: enrollments.userId,
-          courseId: enrollments.courseId,
-          enrolledAt: enrollments.enrolledAt,
+          // Enrollment fields with safe defaults
+          id: sql<string>`COALESCE(${enrollments.id}, '')`.as('id'),
+          userId: sql<string>`${enrollments.userId}`.as('userId'),
+          courseId: sql<string>`COALESCE(${enrollments.courseId}, '')`.as('courseId'),
+          enrolledAt: sql<Date>`${enrollments.enrolledAt}`.as('enrolledAt'),
           progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
-          completedAt: enrollments.completedAt,
+          completedAt: sql<Date>`${enrollments.completedAt}`.as('completedAt'),
           certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
-          assignedEmail: enrollments.assignedEmail,
+          assignedEmail: sql<string>`COALESCE(${enrollments.assignedEmail}, '')`.as('assignedEmail'),
           // User fields with safe defaults
-          userName: users.name,
-          userEmail: users.email,
-          userDepartment: users.department,
-          userClientName: users.clientName,
-          userIdFromTable: users.id,
+          userName: sql<string>`COALESCE(${users.name}, 'Not registered')`.as('userName'),
+          userEmail: sql<string>`COALESCE(${users.email}, '')`.as('userEmail'),
+          userDepartment: sql<string>`COALESCE(${users.department}, 'N/A')`.as('userDepartment'),
+          userClientName: sql<string>`COALESCE(${users.clientName}, 'N/A')`.as('userClientName'),
+          userIdFromTable: sql<string>`${users.id}`.as('userIdFromTable'),
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
         .where(eq(enrollments.courseId, courseId));
 
       // Transform the flat structure back to nested for compatibility
-      const transformedData = enrollmentsData.map(enrollment => ({
-        id: enrollment.id || `temp-${Date.now()}`,
-        userId: enrollment.userId || null,
-        courseId: enrollment.courseId || courseId,
-        enrolledAt: enrollment.enrolledAt || null,
-        progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
-        completedAt: enrollment.completedAt || null,
-        certificateIssued: Boolean(enrollment.certificateIssued),
-        assignedEmail: enrollment.assignedEmail || '',
-        user: enrollment.userIdFromTable ? {
-          id: enrollment.userIdFromTable,
-          name: enrollment.userName || 'Not registered',
-          email: enrollment.userEmail || enrollment.assignedEmail || '',
-          department: enrollment.userDepartment || 'N/A',
-          clientName: enrollment.userClientName || 'N/A',
-        } : null,
-      }));
+      const transformedData = enrollmentsData.map((enrollment, index) => {
+        try {
+          return {
+            id: enrollment.id || `temp-${Date.now()}-${index}`,
+            userId: enrollment.userId || null,
+            courseId: enrollment.courseId || courseId,
+            enrolledAt: enrollment.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+            completedAt: enrollment.completedAt || null,
+            certificateIssued: Boolean(enrollment.certificateIssued),
+            assignedEmail: enrollment.assignedEmail || '',
+            user: enrollment.userIdFromTable ? {
+              id: enrollment.userIdFromTable,
+              name: enrollment.userName || 'Not registered',
+              email: enrollment.userEmail || enrollment.assignedEmail || '',
+              department: enrollment.userDepartment || 'N/A',
+              clientName: enrollment.userClientName || 'N/A',
+            } : null,
+          };
+        } catch (transformError) {
+          console.error(`Error transforming enrollment at index ${index}:`, transformError);
+          return null;
+        }
+      }).filter(Boolean);
 
       return transformedData;
     } catch (error) {
@@ -945,65 +953,71 @@ export class Storage {
 
       const result = await db
         .select({
-          id: enrollments.id,
-          courseId: enrollments.courseId,
-          userId: enrollments.userId,
-          assignedEmail: enrollments.assignedEmail,
-          enrolledAt: enrollments.enrolledAt,
-          progress: enrollments.progress,
-          quizScore: enrollments.quizScore,
-          certificateIssued: enrollments.certificateIssued,
-          remindersSent: enrollments.remindersSent,
-          deadline: enrollments.deadline,
-          status: enrollments.status,
-          completedAt: enrollments.completedAt,
-          assignmentToken: enrollments.assignmentToken,
-          lastAccessedAt: enrollments.lastAccessedAt,
-          // Select user fields individually to avoid null object issues
-          userId_join: users.id,
-          userName: users.name,
-          userEmail: users.email,
-          userDepartment: users.department,
-          userClientName: users.clientName,
+          // Enrollment fields with safe defaults
+          id: sql<string>`COALESCE(${enrollments.id}, '')`.as('id'),
+          courseId: sql<string>`COALESCE(${enrollments.courseId}, '')`.as('courseId'),
+          userId: sql<string>`${enrollments.userId}`.as('userId'),
+          assignedEmail: sql<string>`COALESCE(${enrollments.assignedEmail}, '')`.as('assignedEmail'),
+          enrolledAt: sql<Date>`${enrollments.enrolledAt}`.as('enrolledAt'),
+          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
+          quizScore: sql<number>`${enrollments.quizScore}`.as('quizScore'),
+          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
+          remindersSent: sql<number>`COALESCE(${enrollments.remindersSent}, 0)`.as('remindersSent'),
+          deadline: sql<Date>`${enrollments.deadline}`.as('deadline'),
+          status: sql<string>`COALESCE(${enrollments.status}, 'pending')`.as('status'),
+          completedAt: sql<Date>`${enrollments.completedAt}`.as('completedAt'),
+          assignmentToken: sql<string>`${enrollments.assignmentToken}`.as('assignmentToken'),
+          lastAccessedAt: sql<Date>`${enrollments.lastAccessedAt}`.as('lastAccessedAt'),
+          // User fields with safe defaults
+          userIdFromJoin: sql<string>`${users.id}`.as('userIdFromJoin'),
+          userName: sql<string>`COALESCE(${users.name}, 'Not registered')`.as('userName'),
+          userEmail: sql<string>`COALESCE(${users.email}, '')`.as('userEmail'),
+          userDepartment: sql<string>`COALESCE(${users.department}, 'N/A')`.as('userDepartment'),
+          userClientName: sql<string>`COALESCE(${users.clientName}, 'N/A')`.as('userClientName'),
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
         .where(eq(enrollments.courseId, courseId))
         .orderBy(desc(enrollments.enrolledAt));
 
-      console.log(`Raw query result:`, result);
+      console.log(`Raw query result count: ${result.length}`);
 
       // Transform the data to handle the user relation properly
-      const transformedData = result.map((row) => ({
-        id: row.id,
-        courseId: row.courseId,
-        userId: row.userId,
-        assignedEmail: row.assignedEmail,
-        enrolledAt: row.enrolledAt,
-        progress: row.progress,
-        quizScore: row.quizScore,
-        certificateIssued: row.certificateIssued,
-        remindersSent: row.remindersSent,
-        deadline: row.deadline,
-        status: row.status,
-        completedAt: row.completedAt,
-        assignmentToken: row.assignmentToken,
-        lastAccessedAt: row.lastAccessedAt,
-        user: row.userId_join ? {
-          id: row.userId_join,
-          name: row.userName,
-          email: row.userEmail,
-          department: row.userDepartment,
-          clientName: row.userClientName,
-        } : null,
-      }));
+      const transformedData = result.map((row, index) => {
+        try {
+          return {
+            id: row.id || `temp-${Date.now()}-${index}`,
+            courseId: row.courseId || courseId,
+            userId: row.userId || null,
+            assignedEmail: row.assignedEmail || '',
+            enrolledAt: row.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(row.progress) || 0)),
+            quizScore: row.quizScore ? Number(row.quizScore) : null,
+            certificateIssued: Boolean(row.certificateIssued),
+            remindersSent: Math.max(0, Number(row.remindersSent) || 0),
+            deadline: row.deadline || null,
+            status: row.status || 'pending',
+            completedAt: row.completedAt || null,
+            assignmentToken: row.assignmentToken || null,
+            lastAccessedAt: row.lastAccessedAt || null,
+            user: row.userIdFromJoin ? {
+              id: row.userIdFromJoin,
+              name: row.userName || 'Not registered',
+              email: row.userEmail || row.assignedEmail || '',
+              department: row.userDepartment || 'N/A',
+              clientName: row.userClientName || 'N/A',
+            } : null,
+          };
+        } catch (transformError) {
+          console.error(`Error transforming assignment at index ${index}:`, transformError);
+          return null;
+        }
+      }).filter(Boolean);
 
       console.log(`Found ${transformedData.length} assignments for course ${courseId}`);
       return transformedData;
     } catch (error) {
       console.error(`Error retrieving course assignments for ${courseId}:`, error);
-      // This is where the Drizzle ORM error would occur if fields were null/undefined
-      // The previous fix for getCourseAssignments should resolve this.
       return [];
     }
   }

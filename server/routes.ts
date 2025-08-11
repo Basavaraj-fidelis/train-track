@@ -1329,15 +1329,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assignments = await storage.getCourseAssignments(courseId);
       console.log(`Found ${assignments.length} assignments for course ${courseId}`);
       
-      // Ensure we always return an array
-      const validAssignments = Array.isArray(assignments) ? assignments : [];
+      // Ensure we always return an array with proper validation
+      const validAssignments = Array.isArray(assignments) ? assignments.filter(a => a && typeof a === 'object') : [];
       
-      res.json(validAssignments);
+      // Add additional validation for each assignment
+      const sanitizedAssignments = validAssignments.map((assignment, index) => {
+        try {
+          return {
+            id: assignment.id || `fallback-${Date.now()}-${index}`,
+            courseId: assignment.courseId || courseId,
+            userId: assignment.userId || null,
+            assignedEmail: String(assignment.assignedEmail || '').trim(),
+            enrolledAt: assignment.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(assignment.progress) || 0)),
+            quizScore: assignment.quizScore ? Number(assignment.quizScore) : null,
+            certificateIssued: Boolean(assignment.certificateIssued),
+            remindersSent: Math.max(0, Number(assignment.remindersSent) || 0),
+            deadline: assignment.deadline || null,
+            status: assignment.status || 'pending',
+            completedAt: assignment.completedAt || null,
+            assignmentToken: assignment.assignmentToken || null,
+            lastAccessedAt: assignment.lastAccessedAt || null,
+            user: assignment.user && typeof assignment.user === 'object' ? {
+              id: assignment.user.id || null,
+              name: String(assignment.user.name || 'Not registered').trim(),
+              email: String(assignment.user.email || assignment.assignedEmail || '').trim(),
+              department: String(assignment.user.department || 'N/A').trim(),
+              clientName: String(assignment.user.clientName || 'N/A').trim(),
+            } : null,
+          };
+        } catch (sanitizeError) {
+          console.error(`Error sanitizing assignment at index ${index}:`, sanitizeError);
+          return null;
+        }
+      }).filter(Boolean);
+      
+      console.log(`Returning ${sanitizedAssignments.length} valid assignments`);
+      res.json(sanitizedAssignments);
     } catch (error) {
       console.error("Error fetching course assignments:", error);
       res.status(500).json({ 
         message: "Failed to fetch assignments",
-        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        courseId: req.params.courseId
       });
     }
   });
