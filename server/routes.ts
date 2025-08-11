@@ -438,7 +438,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Password reset requested for email: ${email}`);
 
-      const user = await storage.getUserByEmail(email.trim());
+      let user;
+      try {
+        user = await storage.getUserByEmail(email.trim());
+      } catch (dbError) {
+        console.error("Database error fetching user:", dbError);
+        // Return generic message for security
+        return res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      }
 
       if (!user || user.role !== 'employee' || !user.isActive) {
         console.log(`Password reset: User not found or not eligible for email: ${email}`);
@@ -451,16 +458,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Creating password reset token for user: ${user.id}`);
 
-      await storage.createPasswordResetToken({
-        userId: user.id,
-        token: resetToken,
-        expiresAt: expiresAt,
-      });
+      try {
+        // Use direct database update instead of storage function to avoid schema issues
+        await db.update(users)
+          .set({
+            resetToken: resetToken,
+            resetTokenExpiry: expiresAt,
+          })
+          .where(eq(users.id, user.id));
+
+        console.log('Password reset token stored successfully');
+      } catch (tokenError) {
+        console.error("Error storing password reset token:", tokenError);
+        return res.status(500).json({ message: "Failed to process password reset request" });
+      }
 
       const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
 
       console.log('SMTP Configuration:', {
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        host: process.env.SMTP_HOST || 'smtp.office365.com',
         port: process.env.SMTP_PORT || '587',
         user: process.env.SMTP_USER || process.env.EMAIL_USER,
         hasPassword: !!(process.env.SMTP_PASS || process.env.EMAIL_PASS),
@@ -469,7 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         await transporter.sendMail({
-          from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+          from: process.env.SMTP_FROM || 'nexohr@fidelisgroup.in',
           to: user.email,
           subject: 'Password Reset Request for TrainTrack',
           html: `
@@ -492,10 +508,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ message: "If an account with that email exists, a reset link has been sent." });
       } catch (emailError) {
         console.error("Email sending error:", emailError);
+        
+        // Log detailed error information
+        console.error("Email error details:", {
+          code: emailError.code,
+          command: emailError.command,
+          response: emailError.response,
+          responseCode: emailError.responseCode
+        });
+        
         // Check if it's an authentication error
         if (emailError.code === 'EAUTH' || emailError.responseCode === 535) {
           console.error("SMTP Authentication failed. Please check email credentials.");
-          res.status(500).json({ message: "Email service is not configured properly. Please contact administrator." });
+          res.status(500).json({ message: "Email service authentication failed. Please contact administrator." });
         } else {
           res.status(500).json({ message: "Failed to send reset email. Please try again." });
         }
@@ -510,19 +535,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token, password } = req.body;
 
-      const resetEntry = await storage.getPasswordResetToken(token);
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token and password are required" });
+      }
 
-      if (!resetEntry || new Date() > resetEntry.expiresAt) {
+      // Find user with this reset token
+      let user;
+      try {
+        const result = await db
+          .select()
+          .from(users)
+          .where(eq(users.resetToken, token))
+          .limit(1);
+
+        user = result[0];
+      } catch (dbError) {
+        console.error("Database error fetching reset token:", dbError);
         return res.status(400).json({ message: "Invalid or expired password reset token" });
       }
 
+      if (!user || !user.resetTokenExpiry) {
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+
+      if (new Date() > new Date(user.resetTokenExpiry)) {
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+
+      // Update password and clear reset token
       const hashedPassword = await bcrypt.hash(password, 10);
-      await storage.updateUserPassword(resetEntry.userId, hashedPassword);
+      
+      try {
+        await db.update(users)
+          .set({
+            password: hashedPassword,
+            resetToken: null,
+            resetTokenExpiry: null,
+          })
+          .where(eq(users.id, user.id));
 
-      // Clean up the used token
-      await storage.deletePasswordResetToken(token);
-
-      res.json({ message: "Password reset successfully. You can now log in with your new password." });
+        console.log(`Password reset successfully for user: ${user.email}`);
+        res.json({ message: "Password reset successfully. You can now log in with your new password." });
+      } catch (updateError) {
+        console.error("Error updating password:", updateError);
+        res.status(500).json({ message: "Failed to reset password" });
+      }
     } catch (error) {
       console.error("Reset password error:", error);
       res.status(500).json({ message: "Failed to reset password" });
