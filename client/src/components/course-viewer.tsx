@@ -27,6 +27,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   const [showAcknowledgment, setShowAcknowledgment] = useState(false);
   const [videoProgress, setVideoProgress] = useState(enrollment.progress || 0);
   const [hasWatchedVideo, setHasWatchedVideo] = useState(enrollment.progress >= 80);
+  const [currentTime, setCurrentTime] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);

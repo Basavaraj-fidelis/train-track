@@ -827,7 +827,7 @@ export class Storage {
 
   // Assignment tracking
   async getCourseAssignments(courseId: string): Promise<any[]> {
-    const enrollments = await db
+    const enrollmentsList = await db
       .select({
         id: enrollments.id,
         assignedEmail: enrollments.assignedEmail,
@@ -856,8 +856,8 @@ export class Storage {
       .where(eq(enrollments.courseId, courseId))
       .orderBy(desc(enrollments.enrolledAt));
 
-    console.log(`Retrieved ${enrollments.length} assignments for course ${courseId}`);
-    return enrollments;
+    console.log(`Retrieved ${enrollmentsList.length} assignments for course ${courseId}`);
+    return enrollmentsList;
   }
 
   async incrementReminderCount(enrollmentId: string): Promise<void> {
