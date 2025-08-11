@@ -238,17 +238,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/employee-login", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, password } = req.body; // Added password for authentication
 
       const user = await storage.getUserByEmail(email);
       if (!user || user.role !== "employee" || !user.isActive) {
         return res.status(401).json({ message: "Email not found or not authorized. Please contact HR." });
       }
 
+      // Password verification
+      if (user.password) {
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+      } else {
+        // Handle case where user exists but has no password (e.g., created via bulk import without password)
+        // This might require a password reset flow or a default password.
+        // For now, treating as invalid credentials if no password is set.
+        return res.status(401).json({ message: "Password not set for this account. Please use the 'Forgot Password' feature or contact HR." });
+      }
+
       req.session.userId = user.id;
       req.session.userRole = "employee";
       res.json({ success: true, user });
     } catch (error) {
+      console.error("Employee login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -320,6 +334,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
 
+      // Password generation and hashing for new employees
+      if (!userData.password) {
+        const generatedPassword = Math.random().toString(36).slice(-12); // Simple random password
+        userData.password = await bcrypt.hash(generatedPassword, 10);
+
+        // Send email with username and password
+        try {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+            to: userData.email,
+            subject: 'Your TrainTrack Account Details',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">Welcome to TrainTrack!</h2>
+                <p>Your account has been created. Please use the following credentials to log in:</p>
+                <div style="border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <p><strong>Username/Email:</strong> ${userData.email}</p>
+                  <p><strong>Temporary Password:</strong> ${generatedPassword}</p>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  For security reasons, we recommend changing your password after your first login.
+                </p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${req.protocol}://${req.get('host')}/employee-login" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Login Now
+                  </a>
+                </div>
+              </div>
+            `,
+          });
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+          // Continue even if email fails, as the account is created
+        }
+      }
+
       const employee = await storage.createUser(userData);
       res.json(employee);
     } catch (error) {
@@ -335,6 +385,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
+
+      // Handle password update separately if provided
+      if (req.body.password) {
+        userData.password = await bcrypt.hash(req.body.password, 10);
+      }
 
       const updatedEmployee = await storage.updateUser(req.params.id, userData);
       if (updatedEmployee) {
@@ -368,6 +423,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Password Reset Functionality
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const user = await storage.getUserByEmail(email);
+
+      if (!user || user.role !== 'employee' || !user.isActive) {
+        return res.status(400).json({ message: "If an account with that email exists, a reset link has been sent." });
+      }
+
+      // Generate reset token
+      const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Token valid for 24 hours
+
+      await storage.createPasswordResetToken({
+        userId: user.id,
+        token: resetToken,
+        expiresAt: expiresAt,
+      });
+
+      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+        to: user.email,
+        subject: 'Password Reset Request for TrainTrack',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">Password Reset Request</h2>
+            <p>You requested to reset your password. Please click the link below to set a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">
+              This link will expire in 24 hours. If you did not request this, please ignore this email.
+            </p>
+          </div>
+        `,
+      });
+
+      res.json({ message: "If an account with that email exists, a reset link has been sent." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ message: "Failed to process password reset request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+
+      const resetEntry = await storage.getPasswordResetToken(token);
+
+      if (!resetEntry || new Date() > resetEntry.expiresAt) {
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updateUserPassword(resetEntry.userId, hashedPassword);
+
+      // Clean up the used token
+      await storage.deletePasswordResetToken(token);
+
+      res.json({ message: "Password reset successfully. You can now log in with your new password." });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
   // Course routes
   app.get("/api/courses", async (req, res) => {
     try {
@@ -393,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Course creation request body:', req.body);
       console.log('Course creation file:', req.file);
 
-      const { title, description, questions, courseType, youtubeUrl } = req.body;
+      const { title, description, questions, courseType, youtubeUrl, duration } = req.body;
 
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
@@ -423,6 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         courseType: courseType || 'one-time',
         createdBy: req.session.userId!,
         questions: parsedQuestions,
+        duration: duration ? parseInt(duration, 10) : 0, // Include duration, default to 0 if not provided or invalid
       });
 
       console.log('Course created with ID:', course.id, 'Video path:', course.videoPath);
@@ -439,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/courses/:id", requireAdmin, upload.single('video'), async (req, res) => {
     try {
-      const { title, description, questions, courseType, youtubeUrl } = req.body;
+      const { title, description, questions, courseType, youtubeUrl, duration } = req.body;
       const updateData: any = {
         title,
         description,
@@ -465,6 +593,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid questions format" });
         }
         updateData.questions = parsedQuestions;
+      }
+
+      // Handle duration update
+      if (duration !== undefined) {
+        updateData.duration = parseInt(duration, 10);
       }
 
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);

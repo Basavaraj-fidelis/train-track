@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -102,9 +103,24 @@ export default function EmployeeLogin() {
                 {errors.email && (
                   <p className="text-red-200 text-sm mt-1">{errors.email.message}</p>
                 )}
-                <p className="text-white/70 text-sm mt-2">
-                  Your email must be registered by HR to access courses
-                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-white/90 font-medium">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  {...register("password")}
+                  className={`bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-white/40 focus:ring-white/20 h-12 ${
+                    errors.password ? "border-red-300" : ""
+                  }`}
+                />
+                {errors.password && (
+                  <p className="text-red-200 text-sm mt-1">{errors.password.message}</p>
+                )}
               </div>
 
               <Button 
@@ -121,6 +137,14 @@ export default function EmployeeLogin() {
                   "Access Portal"
                 )}
               </Button>
+
+              <div className="text-center">
+                <Link href="/forgot-password">
+                  <Button variant="ghost" size="sm" className="text-white/70 hover:text-white hover:bg-white/10">
+                    Forgot Password?
+                  </Button>
+                </Link>
+              </div>
             </form>
 
             {/* Info Card */}

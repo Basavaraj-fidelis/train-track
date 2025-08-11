@@ -189,6 +189,10 @@ async function ensureSchemaUpdates() {
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
     
+    // Add password reset fields to users table
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token text`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry timestamp`);
+    
     console.log('Database schema updates completed successfully');
 
     // Update courses table to include youtube_url

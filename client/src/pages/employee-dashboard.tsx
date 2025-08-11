@@ -240,8 +240,14 @@ export default function EmployeeDashboard() {
                                 </div>
                                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">{enrollment.course.description}</p>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm text-gray-600">Progress</span>
-                                  <span className="text-sm font-medium text-gray-900">{Math.max(0, Math.min(100, enrollment.progress || 0))}%</span>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Clock className="w-4 h-4" />
+                                    <span>{enrollment.course?.duration || 30} minutes</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <BarChart3 className="w-4 h-4" />
+                                    <span>Progress: {enrollment.progress}%</span>
+                                  </div>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                                   <div
@@ -521,8 +527,18 @@ export default function EmployeeDashboard() {
                             </div>
 
                             <div className="text-center py-4">
-                              <Button variant="outline">
-                                <Download className="w-4 h-4 mr-2" />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = `/api/certificates/${cert.id}/download`;
+                                  link.download = `Certificate_${cert.certificateData?.courseName?.replace(/\s+/g, '_')}.pdf`;
+                                  link.click();
+                                }}
+                                className="text-green-600 border-green-600 hover:bg-green-50"
+                              >
+                                <Download className="w-4 h-4" />
                                 Download Certificate
                               </Button>
                             </div>

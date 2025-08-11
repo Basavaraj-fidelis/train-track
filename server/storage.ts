@@ -63,8 +63,13 @@ export class Storage {
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || null;
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0] || null;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | null> {
+    const result = await db.select().from(users).where(eq(users.resetToken, token)).limit(1);
+    return result[0] || null;
   }
 
   async getUserByEmployeeId(employeeId: string): Promise<User | null> {
@@ -740,6 +745,15 @@ export class Storage {
     return result.rowCount > 0;
   }
 
+  async getCertificate(certificateId: string): Promise<Certificate | null> {
+    const result = await db
+      .select()
+      .from(certificates)
+      .where(eq(certificates.id, certificateId))
+      .limit(1);
+    return result[0] || null;
+  }
+
   // Bulk operations
   async bulkAssignCourse(courseId: string, userIds: string[]): Promise<Enrollment[]> {
     const course = await this.getCourse(courseId);
@@ -1005,9 +1019,9 @@ export class Storage {
         const allCourses = await db.select({ id: courses.id, title: courses.title }).from(courses).limit(5);
         console.log(`Sample courses in database:`, allCourses);
 
-        const allEnrollments = await db.select({ 
-          id: enrollments.id, 
-          courseId: enrollments.courseId 
+        const allEnrollments = await db.select({
+          id: enrollments.id,
+          courseId: enrollments.courseId
         }).from(enrollments).limit(5);
         console.log(`Sample enrollments in database:`, allEnrollments);
       }
@@ -1081,7 +1095,7 @@ export class Storage {
     for (const enrollment of enrollmentsToFix) {
       await db
         .update(enrollments)
-        .set({ 
+        .set({
           progress: 100,
           status: "completed"
         })

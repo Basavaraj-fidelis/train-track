@@ -20,6 +20,7 @@ interface CourseFormData {
   description: string;
   courseType: "recurring" | "one-time";
   youtubeUrl: string;
+  duration: number;
   quizQuestions: QuizQuestion[];
 }
 
@@ -68,6 +69,7 @@ export default function CourseCreation() {
     description: "",
     courseType: "one-time",
     youtubeUrl: "",
+    duration: 30,
     quizQuestions: [],
   });
 
@@ -80,6 +82,7 @@ export default function CourseCreation() {
         description: existingCourse.description || "",
         courseType: existingCourse.courseType || "one-time",
         youtubeUrl: existingCourse.videoPath || existingCourse.youtubeUrl || "",
+        duration: existingCourse.duration || 30,
         quizQuestions: existingCourse.questions || [],
       });
     }
@@ -200,6 +203,7 @@ export default function CourseCreation() {
         description: courseData.description.trim(),
         courseType: courseData.courseType,
         youtubeUrl: courseData.youtubeUrl.trim(),
+        duration: courseData.duration,
         questions: courseData.quizQuestions,
       };
 
@@ -301,6 +305,27 @@ export default function CourseCreation() {
                   className="mt-1"
                   rows={4}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="duration">Duration (minutes) *</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min="1"
+                  value={courseData.duration}
+                  onChange={(e) =>
+                    setCourseData((prev) => ({
+                      ...prev,
+                      duration: parseInt(e.target.value) || 30,
+                    }))
+                  }
+                  placeholder="Enter course duration in minutes"
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Estimated time to complete the course including video and quiz
+                </p>
               </div>
 
               <div>
