@@ -954,9 +954,12 @@ export class Storage {
           lastAccessedAt: enrollments.lastAccessedAt,
           assignmentToken: enrollments.assignmentToken,
           completedAt: enrollments.completedAt,
+          // User fields - handle potential null values
+          userIdFromTable: users.id,
           userName: users.name,
           userEmail: users.email,
           userClientName: users.clientName,
+          userDepartment: users.department,
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
@@ -964,12 +967,26 @@ export class Storage {
 
       // Transform the result to match the expected format
       const transformedResult = result.map(row => ({
-        ...row,
-        user: row.userId ? {
-          id: row.userId,
-          name: row.userName,
-          email: row.userEmail,
-          clientName: row.userClientName,
+        id: row.id,
+        courseId: row.courseId,
+        userId: row.userId,
+        assignedEmail: row.assignedEmail,
+        enrolledAt: row.enrolledAt,
+        progress: row.progress || 0,
+        quizScore: row.quizScore,
+        certificateIssued: row.certificateIssued || false,
+        remindersSent: row.remindersSent || 0,
+        deadline: row.deadline,
+        status: row.status || 'pending',
+        lastAccessedAt: row.lastAccessedAt,
+        assignmentToken: row.assignmentToken,
+        completedAt: row.completedAt,
+        user: row.userIdFromTable ? {
+          id: row.userIdFromTable,
+          name: row.userName || '',
+          email: row.userEmail || '',
+          clientName: row.userClientName || '',
+          department: row.userDepartment || '',
         } : null
       }));
 

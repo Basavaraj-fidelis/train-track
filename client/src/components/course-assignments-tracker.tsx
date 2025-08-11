@@ -33,11 +33,43 @@ export default function CourseAssignmentsTracker({
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Failed to fetch assignments: ${response.status} - ${errorText}`);
-        throw new Error(`Failed to fetch assignments: ${response.status}`);
+        throw new Error(`Failed to fetch assignments: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       console.log(`Received ${Array.isArray(data) ? data.length : 0} assignments:`, data);
-      return Array.isArray(data) ? data : [];
+      
+      // Validate and clean the data
+      if (!Array.isArray(data)) {
+        console.warn('Expected array but received:', typeof data, data);
+        return [];
+      }
+      
+      // Ensure each assignment has required fields
+      const validatedData = data.map((assignment, index) => {
+        if (!assignment || typeof assignment !== 'object') {
+          console.warn(`Assignment at index ${index} is invalid:`, assignment);
+          return null;
+        }
+        
+        return {
+          id: assignment.id || `temp-${index}`,
+          courseId: assignment.courseId || courseId,
+          userId: assignment.userId || null,
+          assignedEmail: assignment.assignedEmail || '',
+          enrolledAt: assignment.enrolledAt || null,
+          progress: Math.max(0, Math.min(100, assignment.progress || 0)),
+          quizScore: assignment.quizScore || null,
+          certificateIssued: assignment.certificateIssued || false,
+          remindersSent: assignment.remindersSent || 0,
+          deadline: assignment.deadline || null,
+          status: assignment.status || 'pending',
+          completedAt: assignment.completedAt || null,
+          user: assignment.user || null,
+        };
+      }).filter(Boolean);
+      
+      console.log(`Validated ${validatedData.length} assignments`);
+      return validatedData;
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -207,50 +239,66 @@ export default function CourseAssignmentsTracker({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignments.map((assignment: any) => {
+                  {assignments.map((assignment: any, index: number) => {
+                    if (!assignment) {
+                      console.warn(`Skipping null assignment at index ${index}`);
+                      return null;
+                    }
+                    
                     const userEmail = assignment.assignedEmail || assignment.user?.email || "N/A";
                     const userName = assignment.user?.name || "Not registered";
                     const clientName = assignment.user?.clientName || "N/A";
                     const progress = Math.max(0, Math.min(100, assignment.progress || 0));
                     
-                    return (
-                      <TableRow key={assignment.id || `assignment-${Math.random()}`}>
-                        <TableCell>{userEmail}</TableCell>
-                        <TableCell>{userName}</TableCell>
-                        <TableCell>{clientName}</TableCell>
-                        <TableCell>
-                          {assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            assignment.certificateIssued ? "default" :
-                            assignment.status === "expired" ? "destructive" :
-                            assignment.userId ? "outline" : "secondary"
-                          }>
-                            {assignment.certificateIssued ? "Completed" :
-                             assignment.status === "expired" ? "Expired" :
-                             assignment.userId ? "In Progress" :
-                             "Email Sent"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${progress}%` }}
-                              />
+                    try {
+                      return (
+                        <TableRow key={assignment.id || `assignment-${index}`}>
+                          <TableCell>{userEmail}</TableCell>
+                          <TableCell>{userName}</TableCell>
+                          <TableCell>{clientName}</TableCell>
+                          <TableCell>
+                            {assignment.enrolledAt ? new Date(assignment.enrolledAt).toLocaleDateString() : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            {assignment.deadline ? new Date(assignment.deadline).toLocaleDateString() : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              assignment.certificateIssued ? "default" :
+                              assignment.status === "expired" ? "destructive" :
+                              assignment.userId ? "outline" : "secondary"
+                            }>
+                              {assignment.certificateIssued ? "Completed" :
+                               assignment.status === "expired" ? "Expired" :
+                               assignment.userId ? "In Progress" :
+                               "Email Sent"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-16 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                              <span className="text-sm text-gray-600">{progress}%</span>
                             </div>
-                            <span className="text-sm text-gray-600">{progress}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{assignment.remindersSent || 0}</TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          </TableCell>
+                          <TableCell>{assignment.remindersSent || 0}</TableCell>
+                        </TableRow>
+                      );
+                    } catch (renderError) {
+                      console.error(`Error rendering assignment at index ${index}:`, renderError, assignment);
+                      return (
+                        <TableRow key={`error-${index}`}>
+                          <TableCell colSpan={8} className="text-red-500 text-center">
+                            Error displaying assignment data
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                  }).filter(Boolean)}
                 </TableBody>
               </Table>
             ) : (
