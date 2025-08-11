@@ -114,7 +114,7 @@ export class Storage {
     const courseToInsert: InsertCourse = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.youtubeUrl || courseData.videoPath, // Store YouTube URL or video file path
+      videoPath: courseData.youtubeUrl || courseData.videoPath || '', // Store YouTube URL or video file path
       duration: courseData.duration || 0,
       createdBy: courseData.createdBy || 'admin',
       courseType: courseData.courseType as "recurring" | "one-time" || "one-time",
@@ -143,7 +143,13 @@ export class Storage {
       .from(courses)
       .where(eq(courses.id, id));
 
-    console.log('Retrieved course data:', course);
+    console.log('Retrieved course data for ID:', id);
+    console.log('Course details:', {
+      id: course?.id,
+      title: course?.title,
+      videoPath: course?.videoPath,
+      hasVideoPath: !!course?.videoPath
+    });
     return course || null;
   }
 
@@ -155,8 +161,8 @@ export class Storage {
     const updateData: Partial<InsertCourse> = { ...courseData };
     // Ensure youtubeUrl is mapped to videoPath for the database update
     if (courseData.youtubeUrl !== undefined) {
-      updateData.videoPath = courseData.youtubeUrl;
-      delete updateData.youtubeUrl; // Remove from the set of fields to update if it's not a direct column
+      updateData.videoPath = courseData.youtubeUrl || '';
+      delete (updateData as any).youtubeUrl; // Remove from the set of fields to update if it's not a direct column
     }
     delete (updateData as any).questions;
 

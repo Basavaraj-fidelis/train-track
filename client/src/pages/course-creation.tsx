@@ -203,6 +203,8 @@ export default function CourseCreation() {
         questions: courseData.quizQuestions,
       };
 
+      console.log('Submitting course data:', requestData);
+
       const url = isEditing ? `/api/courses/${editCourseId}` : "/api/courses";
       const method = isEditing ? "PUT" : "POST";
 

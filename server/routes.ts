@@ -310,11 +310,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Determine video source - either file upload or YouTube URL
+      let finalVideoPath = '';
+      if (req.file) {
+        finalVideoPath = req.file.filename;
+      } else if (youtubeUrl) {
+        finalVideoPath = youtubeUrl.trim();
+      }
+
       const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        videoPath: req.file ? req.file.filename : undefined,
-        youtubeUrl: youtubeUrl ? youtubeUrl.trim() : undefined,
+        videoPath: finalVideoPath,
         courseType: courseType || 'one-time',
         createdBy: req.session.userId!,
         questions: parsedQuestions,
@@ -351,10 +358,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle video upload or YouTube URL update
       if (req.file) {
         updateData.videoPath = req.file.filename;
-        updateData.youtubeUrl = null; // Clear YouTube URL if a file is uploaded
-      } else if (youtubeUrl) {
-        updateData.youtubeUrl = youtubeUrl;
-        updateData.videoPath = null; // Clear video path if a URL is provided
+      } else if (youtubeUrl !== undefined) {
+        updateData.videoPath = youtubeUrl.trim() || '';
       }
 
       // Handle questions update

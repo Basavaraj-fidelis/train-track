@@ -230,74 +230,50 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="aspect-video bg-gray-900 rounded-lg mb-4 relative">
-            {(course.videoPath || course.youtubeUrl) ? (
-                      // Check for YouTube URL first, then fallback to videoPath
-                      course.youtubeUrl ? (
-                        <iframe
-                          src={getEmbedUrl(course.youtubeUrl)}
-                          title={course.title}
-                          className="w-full aspect-video rounded-lg"
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          onLoad={() => {
-                            console.log('YouTube video loaded:', course.youtubeUrl);
-                            // Auto-mark video as watched for YouTube videos after 30 seconds
-                            setTimeout(() => {
-                              setHasWatchedVideo(true);
-                              updateProgressMutation.mutate(90);
-                            }, 30000);
-                          }}
-                        />
-                      ) : course.videoPath && (course.videoPath.includes('youtube.com') || course.videoPath.includes('youtu.be')) ? (
-                        <iframe
-                          src={getEmbedUrl(course.videoPath)}
-                          title={course.title}
-                          className="w-full aspect-video rounded-lg"
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          onLoad={() => {
-                            console.log('YouTube video loaded from videoPath:', course.videoPath);
-                            // Auto-mark video as watched for YouTube videos after 30 seconds
-                            setTimeout(() => {
-                              setHasWatchedVideo(true);
-                              updateProgressMutation.mutate(90);
-                            }, 30000);
-                          }}
-                        />
-                      ) : course.videoPath ? (
-                        <video
-                          ref={videoRef}
-                          controls
-                          className="w-full aspect-video rounded-lg"
-                          onTimeUpdate={handleVideoProgress}
-                          onEnded={() => {
-                            setHasWatchedVideo(true);
-                            updateProgressMutation.mutate(90);
-                          }}
-                        >
-                          <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </video>
-                      ) : (
-                        <div className="w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
-                          <div className="text-center">
-                            <PlayCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-400">No video available for this course</p>
-                            <p className="text-gray-500 text-sm mt-2">Please contact your administrator to add course content</p>
-                          </div>
-                        </div>
-                      )
-                    ) : (
-                      <div className="w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
-                        <div className="text-center">
-                          <PlayCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-400">No video available for this course</p>
-                          <p className="text-gray-500 text-sm mt-2">Please contact your administrator to add course content</p>
-                        </div>
-                      </div>
-                    )}
+            {course.videoPath ? (
+              // Check if videoPath contains YouTube URL
+              course.videoPath.includes('youtube.com') || course.videoPath.includes('youtu.be') ? (
+                <iframe
+                  src={getEmbedUrl(course.videoPath)}
+                  title={course.title}
+                  className="w-full aspect-video rounded-lg"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  onLoad={() => {
+                    console.log('YouTube video loaded:', course.videoPath);
+                    // Auto-mark video as watched for YouTube videos after 30 seconds
+                    setTimeout(() => {
+                      setHasWatchedVideo(true);
+                      updateProgressMutation.mutate(90);
+                    }, 30000);
+                  }}
+                />
+              ) : (
+                // Handle uploaded video files
+                <video
+                  ref={videoRef}
+                  controls
+                  className="w-full aspect-video rounded-lg"
+                  onTimeUpdate={handleVideoProgress}
+                  onEnded={() => {
+                    setHasWatchedVideo(true);
+                    updateProgressMutation.mutate(90);
+                  }}
+                >
+                  <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              )
+            ) : (
+              <div className="w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <PlayCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400">No video available for this course</p>
+                  <p className="text-gray-500 text-sm mt-2">Please contact your administrator to add course content</p>
+                </div>
+              </div>
+            )}
             {error && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
                 <div className="text-center text-white">
