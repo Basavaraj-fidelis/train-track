@@ -1765,10 +1765,10 @@ export default function EnhancedHRDashboard() {
                 <TableBody>
                   {courseEnrollments.map((enrollment: any) => (
                     <TableRow key={enrollment.id}>
-                      <TableCell>{enrollment.user.name}</TableCell>
-                      <TableCell>{enrollment.user.email}</TableCell>
-                      <TableCell>{enrollment.user.department}</TableCell>
-                      <TableCell>{enrollment.user.clientName || "N/A"}</TableCell>
+                      <TableCell>{enrollment.user?.name || enrollment.assignedEmail || "Email Assigned"}</TableCell>
+                      <TableCell>{enrollment.user?.email || enrollment.assignedEmail || "N/A"}</TableCell>
+                      <TableCell>{enrollment.user?.department || "Not registered"}</TableCell>
+                      <TableCell>{enrollment.user?.clientName || "N/A"}</TableCell>
                       <TableCell>
                         {new Date(enrollment.enrolledAt).toLocaleDateString()}
                       </TableCell>
@@ -1779,7 +1779,8 @@ export default function EnhancedHRDashboard() {
                             enrollment.completedAt ? "default" : "secondary"
                           }
                         >
-                          {enrollment.completedAt ? "Completed" : "In Progress"}
+                          {enrollment.completedAt ? "Completed" : 
+                           enrollment.user ? "In Progress" : "Email Sent"}
                         </Badge>
                       </TableCell>
                     </TableRow>

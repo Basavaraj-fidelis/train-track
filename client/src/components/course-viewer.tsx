@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Play, FileText, Download } from "lucide-react";
+import { Play, FileText, Download, PlayCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -198,6 +198,19 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     return url; // Return as-is for other video URLs
   };
 
+  const handleVideoProgress = () => {
+    if (videoRef.current) {
+      const progress = Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100);
+      setVideoProgress(progress);
+
+      if (progress >= 80 && !hasWatchedVideo) {
+        setHasWatchedVideo(true);
+        updateProgressMutation.mutate(progress);
+      }
+    }
+  };
+
+
   if (showQuiz && quiz) {
     return (
       <QuizComponent
@@ -215,61 +228,47 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="aspect-video bg-gray-900 rounded-lg mb-4 relative">
-            {course?.videoPath ? (
-              getEmbedUrl(course.videoPath) ? (
-                <div className="w-full h-full bg-gray-900 rounded-lg overflow-hidden">
-                  <iframe
-                    className="w-full h-full"
-                    src={getEmbedUrl(course.videoPath)}
-                    title={course.title}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    onLoad={() => {
-                      // Auto-mark as watched for YouTube videos since we can't track progress
-                      setTimeout(() => {
-                        setHasWatchedVideo(true);
-                        setVideoProgress(100);
-                        updateProgressMutation.mutate(90);
-                      }, 3000); // Wait 3 seconds before marking as watched
-                    }}
-                  ></iframe>
-                </div>
-              ) : (
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover rounded-lg"
-                  controls
-                  controlsList="nodownload nofullscreen noremoteplayback"
-                  disablePictureInPicture
-                  onError={(e) => {
-                    console.error('Video error:', e);
-                    setError('Unable to load video. Please contact your administrator.');
-                  }}
-                  onTimeUpdate={() => {
-                    if (videoRef.current) {
-                      const progress = Math.round((videoRef.current.currentTime / videoRef.current.duration) * 100);
-                      setVideoProgress(progress);
-
-                      if (progress >= 80 && !hasWatchedVideo) {
-                        setHasWatchedVideo(true);
-                        updateProgressMutation.mutate(progress);
-                      }
-                    }
-                  }}
-                >
-                  <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              )
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center text-white">
-                  <Play size={64} className="mx-auto mb-4 opacity-50" />
-                  <p>No video available for this course</p>
-                </div>
-              </div>
-            )}
+            {(course.videoPath || course.youtubeUrl) ? (
+                      (course.youtubeUrl || course.videoPath?.includes('youtube.com') || course.videoPath?.includes('youtu.be')) ? (
+                        <iframe
+                          src={getEmbedUrl(course.youtubeUrl || course.videoPath)}
+                          title={course.title}
+                          className="w-full aspect-video rounded-lg"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          onLoad={() => {
+                            console.log('YouTube video loaded');
+                            // Auto-mark video as watched for YouTube videos after 30 seconds
+                            setTimeout(() => {
+                              setHasWatchedVideo(true);
+                              updateProgressMutation.mutate(90);
+                            }, 30000);
+                          }}
+                        />
+                      ) : (
+                        <video
+                          ref={videoRef}
+                          controls
+                          className="w-full aspect-video rounded-lg"
+                          onTimeUpdate={handleVideoProgress}
+                          onEnded={() => {
+                            setHasWatchedVideo(true);
+                            updateProgressMutation.mutate(90);
+                          }}
+                        >
+                          <source src={`/api/videos/${course.videoPath}`} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                      )
+                    ) : (
+                      <div className="w-full aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div className="text-center">
+                          <PlayCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-500">No video available for this course</p>
+                        </div>
+                      </div>
+                    )}
             {error && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75">
                 <div className="text-center text-white">
