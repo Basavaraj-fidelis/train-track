@@ -9,6 +9,25 @@ import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import "./types"; // Import session type definitions
+import { eq, sql } from "drizzle-orm";
+import { db } from "./db";
+import {
+  users,
+  courses,
+  enrollments,
+  quizzes,
+  certificates,
+  type User,
+  type Course,
+  type Enrollment,
+  type Quiz,
+  type Certificate,
+  type InsertUser,
+  type InsertCourse,
+  type InsertEnrollment,
+  type InsertQuiz,
+  type InsertCertificate,
+} from "@shared/schema";
 
 // Configure multer for video uploads
 const upload = multer({
@@ -77,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/reset-database", async (req, res) => {
     try {
       const { resetKey } = req.body;
-      
+
       // Simple protection - require a reset key
       if (resetKey !== "RESET_TRAINTRACK_DB_2025") {
         return res.status(403).json({ message: "Invalid reset key" });
@@ -103,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log('Database reset completed and admin user created');
-      
+
       res.json({ 
         success: true, 
         message: "Database reset successfully and admin user created",
@@ -182,9 +201,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         req.session.userId = adminUser.id;
         req.session.userRole = "admin";
-        
+
         console.log('Admin login successful:', { userId: adminUser.id, email: adminUser.email });
-        
+
         res.json({ 
           success: true, 
           user: {
@@ -439,7 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
-      
+
       if (!updatedCourse) {
         return res.status(404).json({ message: "Course not found" });
       }
@@ -455,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/courses/:id/deletion-impact", requireAdmin, async (req, res) => {
     try {
       const impact = await storage.getCourseDeletionImpact(req.params.id);
-      
+
       if (!impact.course) {
         return res.status(404).json({ message: "Course not found" });
       }
@@ -504,11 +523,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enrolledUserIds = [...new Set(enrollments.map(e => e.user?.id).filter(Boolean))];
 
       const success = await storage.deleteCourse(req.params.id);
-      
+
       if (success) {
         console.log(`Course deleted: ${course.title} (ID: ${req.params.id})`);
         console.log(`Cleaned up ${enrollments.length} enrollments for ${enrolledUserIds.length} users`);
-        
+
         res.json({ 
           success: true,
           message: "Course and all related data deleted successfully",
@@ -1360,14 +1379,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
     try {
       const courseId = req.params.courseId;
-      
+
       // Validate courseId
       if (!courseId || courseId.trim() === '') {
         return res.status(400).json({ message: "Course ID is required" });
       }
 
       console.log(`Fetching assignments for course: ${courseId}`);
-      
+
       // Verify course exists first
       const course = await storage.getCourse(courseId);
       if (!course) {
@@ -1377,10 +1396,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const assignments = await storage.getCourseAssignments(courseId);
       console.log(`Found ${assignments.length} assignments for course ${courseId}`);
-      
+
       // Ensure we always return an array with proper validation
       const validAssignments = Array.isArray(assignments) ? assignments.filter(a => a && typeof a === 'object') : [];
-      
+
       // Add additional validation for each assignment
       const sanitizedAssignments = validAssignments.map((assignment, index) => {
         try {
@@ -1412,7 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return null;
         }
       }).filter(Boolean);
-      
+
       console.log(`Returning ${sanitizedAssignments.length} valid assignments`);
       res.json(sanitizedAssignments);
     } catch (error) {
@@ -1545,14 +1564,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/courses/:courseId/enrollments", requireAdmin, async (req, res) => {
     try {
       const courseId = req.params.courseId;
-      
+
       // Validate courseId
       if (!courseId || courseId.trim() === '') {
         return res.status(400).json({ message: "Course ID is required" });
       }
 
       console.log(`Fetching enrollments for course: ${courseId}`);
-      
+
       // Verify course exists first
       const course = await storage.getCourse(courseId);
       if (!course) {
@@ -1562,7 +1581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const enrollments = await storage.getCourseEnrollments(courseId);
       console.log(`Found ${enrollments.length} enrollments for course ${courseId}`);
-      
+
       // Ensure we always return an array with consistent data structure
       const formattedEnrollments = (Array.isArray(enrollments) ? enrollments : []).map(enrollment => {
         if (!enrollment || typeof enrollment !== 'object') {
@@ -1585,7 +1604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user: enrollment.user || null,
         };
       }).filter(Boolean);
-      
+
       res.json(formattedEnrollments);
     } catch (error) {
       console.error("Error fetching course enrollments:", error);
