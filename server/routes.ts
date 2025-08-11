@@ -1685,19 +1685,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.getDashboardStats();
       const dbResponseTime = Date.now() - startTime;
 
+      // Get real memory usage
+      const memoryStats = process.memoryUsage();
+      const memoryUsagePercent = Math.round((memoryStats.heapUsed / memoryStats.heapTotal) * 100);
+
+      // Calculate uptime
+      const uptimeSeconds = process.uptime();
+      const hours = Math.floor(uptimeSeconds / 3600);
+      const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+      const formattedUptime = `${hours}h ${minutes}m`;
+
+      // Get active sessions (you can enhance this to track real sessions)
+      const activeUsers = Object.keys(req.sessionStore?.sessions || {}).length || 1;
+
       const metrics = {
         serverResponseTime: dbResponseTime,
-        activeUsers: 1, // In a real app, you'd track active sessions
-        memoryUsage: process.memoryUsage ? Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100) : 45,
-        cpuUsage: Math.floor(Math.random() * 20) + 15, // Simulated CPU usage
-        uptime: process.uptime ? `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m` : "Unknown",
-        requestsPerMinute: 15, // In a real app, you'd track this
+        activeUsers: activeUsers,
+        memoryUsage: memoryUsagePercent,
+        cpuUsage: Math.floor(Math.random() * 15) + 10, // Simulated, as real CPU monitoring requires additional packages
+        uptime: formattedUptime,
+        requestsPerMinute: Math.floor(Math.random() * 10) + 5, // Simulated for now
         dbConnectionStatus: "Connected",
-        totalRequests: 0 // In a real app, you'd track this
+        totalRequests: 0 // Would require middleware to track
       };
 
       res.json(metrics);
     } catch (error) {
+      console.error('Performance metrics error:', error);
       res.status(500).json({ 
         message: "Failed to fetch performance metrics",
         error: process.env.NODE_ENV === 'development' ? error.message : undefined

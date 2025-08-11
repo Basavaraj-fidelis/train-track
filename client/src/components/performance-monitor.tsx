@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Activity, Clock, Users, TrendingUp } from "lucide-react";
+import { Activity, Clock, Users, TrendingUp, Database } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface PerformanceMetrics {
   serverResponseTime: number;
@@ -16,36 +18,22 @@ interface PerformanceMetrics {
   totalRequests: number;
 }
 
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-
 export default function PerformanceMonitor() {
   const [isConnected, setIsConnected] = useState(true);
 
   // Fetch real performance metrics from API
-  const { data: metrics, isError } = useQuery({
+  const { data: metrics, isError, error } = useQuery({
     queryKey: ["/api/performance-metrics"],
-    queryFn: async () => {
-      try {
-        const response = await apiRequest("GET", "/api/performance-metrics");
-        return response.json();
-      } catch (error) {
-        // Fallback to basic metrics if API fails
-        return {
-          serverResponseTime: process.hrtime ? Math.floor(Math.random() * 100) + 50 : 150,
-          activeUsers: 1,
-          memoryUsage: process.memoryUsage ? Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100) : 45,
-          cpuUsage: 25,
-          uptime: "Unknown",
-          requestsPerMinute: 10,
-          dbConnectionStatus: "Connected",
-          totalRequests: 0
-        };
+    queryFn: async (): Promise<PerformanceMetrics> => {
+      const response = await apiRequest("GET", "/api/performance-metrics");
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics');
       }
+      return response.json();
     },
     refetchInterval: 5000, // Refresh every 5 seconds
-    onError: () => setIsConnected(false),
-    onSuccess: () => setIsConnected(true),
+    retry: 3,
+    retryDelay: 1000,
   });
 
   useEffect(() => {
@@ -64,7 +52,14 @@ export default function PerformanceMonitor() {
     return <Badge className="bg-red-100 text-red-800">Critical</Badge>;
   };
 
-  if (!metrics) {
+  const getConnectionStatusBadge = () => {
+    if (isError) {
+      return <Badge className="bg-red-100 text-red-800">Disconnected</Badge>;
+    }
+    return <Badge className="bg-green-100 text-green-800">Connected</Badge>;
+  };
+
+  if (!metrics && !isError) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {[...Array(6)].map((_, i) => (
@@ -85,6 +80,29 @@ export default function PerformanceMonitor() {
     );
   }
 
+  // Show error state with connection status
+  if (isError || !metrics) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-lg font-bold text-red-600">Disconnected</div>
+                <p className="text-xs text-muted-foreground">Unable to fetch metrics</p>
+              </div>
+              <Badge className="bg-red-100 text-red-800">Error</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {/* Server Response Time */}
@@ -97,28 +115,26 @@ export default function PerformanceMonitor() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold">{metrics.serverResponseTime}ms</div>
-              <p className="text-xs text-muted-foreground">Average response time</p>
+              <p className="text-xs text-muted-foreground">Database query time</p>
             </div>
             {getStatusBadge(metrics.serverResponseTime, { good: 200, warning: 500 })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Active Users */}
+      {/* Connection Status */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
+          <Database className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold">{metrics.activeUsers}</div>
-              <p className="text-xs text-muted-foreground">Currently online</p>
+              <div className="text-2xl font-bold">{metrics.dbConnectionStatus}</div>
+              <p className="text-xs text-muted-foreground">Database connection</p>
             </div>
-            <Badge className={`${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {isConnected ? 'Online' : 'Offline'}
-            </Badge>
+            {getConnectionStatusBadge()}
           </div>
         </CardContent>
       </Card>
@@ -139,33 +155,12 @@ export default function PerformanceMonitor() {
               value={metrics.memoryUsage} 
               className="h-2"
             />
-            <p className="text-xs text-muted-foreground">RAM utilization</p>
+            <p className="text-xs text-muted-foreground">Node.js heap usage</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* CPU Usage */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{metrics.cpuUsage}%</span>
-              {getStatusBadge(metrics.cpuUsage, { good: 50, warning: 75 })}
-            </div>
-            <Progress 
-              value={metrics.cpuUsage} 
-              className="h-2"
-            />
-            <p className="text-xs text-muted-foreground">Processor load</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Uptime */}
+      {/* System Uptime */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
@@ -174,12 +169,31 @@ export default function PerformanceMonitor() {
         <CardContent>
           <div>
             <div className="text-2xl font-bold">{metrics.uptime}</div>
-            <p className="text-xs text-muted-foreground">Continuous operation</p>
+            <p className="text-xs text-muted-foreground">Process runtime</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Requests Per Minute */}
+      {/* Active Sessions */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Active Sessions</CardTitle>
+          <Users className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold">{metrics.activeUsers}</div>
+              <p className="text-xs text-muted-foreground">Current users</p>
+            </div>
+            <Badge className="bg-blue-100 text-blue-800">
+              Online
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Request Metrics */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Request Rate</CardTitle>
@@ -188,7 +202,7 @@ export default function PerformanceMonitor() {
         <CardContent>
           <div>
             <div className="text-2xl font-bold">{metrics.requestsPerMinute}/min</div>
-            <p className="text-xs text-muted-foreground">HTTP requests</p>
+            <p className="text-xs text-muted-foreground">API requests</p>
           </div>
         </CardContent>
       </Card>
