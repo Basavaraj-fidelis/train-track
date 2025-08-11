@@ -1768,9 +1768,9 @@ export default function EnhancedHRDashboard() {
       >
         <DialogContent className="max-w-4xl">
           <CardHeader>
-            <CardTitle>
+            <DialogTitle>
               Course Assignments: {selectedCourseEnrollments?.title}
-            </CardTitle>
+            </DialogTitle>
             <p className="text-sm text-gray-600">
               Users assigned via email will receive unique access links. They
               don't login with email directly.

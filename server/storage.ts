@@ -943,61 +943,60 @@ export class Storage {
     try {
       console.log(`Fetching assignments for course: ${courseId}`);
 
-      const enrollmentsData = await db
+      const result = await db
         .select({
-          // Enrollment fields - use sql`` to ensure fields are not null
           id: enrollments.id,
-          userId: enrollments.userId,
           courseId: enrollments.courseId,
-          enrolledAt: enrollments.enrolledAt,
-          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
-          completedAt: enrollments.completedAt,
-          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
+          userId: enrollments.userId,
           assignedEmail: enrollments.assignedEmail,
+          enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
           quizScore: enrollments.quizScore,
-          remindersSent: sql<number>`COALESCE(${enrollments.remindersSent}, 0)`.as('remindersSent'),
+          certificateIssued: enrollments.certificateIssued,
+          remindersSent: enrollments.remindersSent,
           deadline: enrollments.deadline,
-          status: sql<string>`COALESCE(${enrollments.status}, 'pending')`.as('status'),
-          lastAccessedAt: enrollments.lastAccessedAt,
+          status: enrollments.status,
+          completedAt: enrollments.completedAt,
           assignmentToken: enrollments.assignmentToken,
-          // User fields with null checks
+          lastAccessedAt: enrollments.lastAccessedAt,
+          // Select user fields individually to avoid null object issues
+          userId_join: users.id,
           userName: users.name,
           userEmail: users.email,
           userDepartment: users.department,
           userClientName: users.clientName,
-          userIdFromTable: users.id,
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
-        .where(eq(enrollments.courseId, courseId));
+        .where(eq(enrollments.courseId, courseId))
+        .orderBy(desc(enrollments.enrolledAt));
 
-      // Transform the flat structure back to nested for compatibility
-      const transformedData = enrollmentsData.map(enrollment => {
-        // Ensure all required fields have safe defaults
-        return {
-          id: enrollment.id || `temp-${Date.now()}`,
-          userId: enrollment.userId || null,
-          courseId: enrollment.courseId || courseId,
-          enrolledAt: enrollment.enrolledAt || null,
-          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
-          completedAt: enrollment.completedAt || null,
-          certificateIssued: Boolean(enrollment.certificateIssued),
-          assignedEmail: enrollment.assignedEmail || '',
-          quizScore: enrollment.quizScore ? Number(enrollment.quizScore) : null,
-          remindersSent: Math.max(0, Number(enrollment.remindersSent) || 0),
-          deadline: enrollment.deadline || null,
-          status: enrollment.status || 'pending',
-          lastAccessedAt: enrollment.lastAccessedAt || null,
-          assignmentToken: enrollment.assignmentToken || null,
-          user: enrollment.userIdFromTable ? {
-            id: enrollment.userIdFromTable,
-            name: enrollment.userName || 'Not registered',
-            email: enrollment.userEmail || enrollment.assignedEmail || '',
-            department: enrollment.userDepartment || 'N/A',
-            clientName: enrollment.userClientName || 'N/A',
-          } : null,
-        };
-      });
+      console.log(`Raw query result:`, result);
+
+      // Transform the data to handle the user relation properly
+      const transformedData = result.map((row) => ({
+        id: row.id,
+        courseId: row.courseId,
+        userId: row.userId,
+        assignedEmail: row.assignedEmail,
+        enrolledAt: row.enrolledAt,
+        progress: row.progress,
+        quizScore: row.quizScore,
+        certificateIssued: row.certificateIssued,
+        remindersSent: row.remindersSent,
+        deadline: row.deadline,
+        status: row.status,
+        completedAt: row.completedAt,
+        assignmentToken: row.assignmentToken,
+        lastAccessedAt: row.lastAccessedAt,
+        user: row.userId_join ? {
+          id: row.userId_join,
+          name: row.userName,
+          email: row.userEmail,
+          department: row.userDepartment,
+          clientName: row.userClientName,
+        } : null,
+      }));
 
       console.log(`Found ${transformedData.length} assignments for course ${courseId}`);
       return transformedData;
