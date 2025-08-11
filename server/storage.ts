@@ -954,9 +954,9 @@ export class Storage {
       const result = await db
         .select({
           // Enrollment fields
-          id: enrollments.id,
-          courseId: enrollments.courseId,
-          userId: enrollments.userId,
+          enrollmentId: enrollments.id,
+          enrollmentCourseId: enrollments.courseId,
+          enrollmentUserId: enrollments.userId,
           assignedEmail: enrollments.assignedEmail,
           enrolledAt: enrollments.enrolledAt,
           progress: enrollments.progress,
@@ -969,7 +969,7 @@ export class Storage {
           assignmentToken: enrollments.assignmentToken,
           lastAccessedAt: enrollments.lastAccessedAt,
           // User fields
-          userIdFromJoin: users.id,
+          userId: users.id,
           userName: users.name,
           userEmail: users.email,
           userDepartment: users.department,
@@ -986,9 +986,9 @@ export class Storage {
       const transformedData = result.map((row, index) => {
         try {
           return {
-            id: row.id || `temp-${Date.now()}-${index}`,
-            courseId: row.courseId || courseId,
-            userId: row.userId || null,
+            id: row.enrollmentId || `temp-${Date.now()}-${index}`,
+            courseId: row.enrollmentCourseId || courseId,
+            userId: row.enrollmentUserId || null,
             assignedEmail: row.assignedEmail || '',
             enrolledAt: row.enrolledAt || null,
             progress: Math.max(0, Math.min(100, Number(row.progress) || 0)),
@@ -1000,8 +1000,8 @@ export class Storage {
             completedAt: row.completedAt || null,
             assignmentToken: row.assignmentToken || null,
             lastAccessedAt: row.lastAccessedAt || null,
-            user: row.userIdFromJoin ? {
-              id: row.userIdFromJoin,
+            user: row.userId ? {
+              id: row.userId,
               name: row.userName || 'Not registered',
               email: row.userEmail || row.assignedEmail || '',
               department: row.userDepartment || 'N/A',
