@@ -614,21 +614,21 @@ export class Storage {
     try {
       const enrollmentsData = await db
         .select({
-          // Enrollment fields with safe defaults
-          id: sql<string>`COALESCE(${enrollments.id}, '')`.as('id'),
-          userId: sql<string>`${enrollments.userId}`.as('userId'),
-          courseId: sql<string>`COALESCE(${enrollments.courseId}, '')`.as('courseId'),
-          enrolledAt: sql<Date>`${enrollments.enrolledAt}`.as('enrolledAt'),
-          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
-          completedAt: sql<Date>`${enrollments.completedAt}`.as('completedAt'),
-          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
-          assignedEmail: sql<string>`COALESCE(${enrollments.assignedEmail}, '')`.as('assignedEmail'),
-          // User fields with safe defaults
-          userName: sql<string>`COALESCE(${users.name}, 'Not registered')`.as('userName'),
-          userEmail: sql<string>`COALESCE(${users.email}, '')`.as('userEmail'),
-          userDepartment: sql<string>`COALESCE(${users.department}, 'N/A')`.as('userDepartment'),
-          userClientName: sql<string>`COALESCE(${users.clientName}, 'N/A')`.as('userClientName'),
-          userIdFromTable: sql<string>`${users.id}`.as('userIdFromTable'),
+          // Enrollment fields
+          id: enrollments.id,
+          userId: enrollments.userId,
+          courseId: enrollments.courseId,
+          enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
+          completedAt: enrollments.completedAt,
+          certificateIssued: enrollments.certificateIssued,
+          assignedEmail: enrollments.assignedEmail,
+          // User fields
+          userName: users.name,
+          userEmail: users.email,
+          userDepartment: users.department,
+          userClientName: users.clientName,
+          userIdFromTable: users.id,
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
@@ -953,27 +953,27 @@ export class Storage {
 
       const result = await db
         .select({
-          // Enrollment fields with safe defaults
-          id: sql<string>`COALESCE(${enrollments.id}, '')`.as('id'),
-          courseId: sql<string>`COALESCE(${enrollments.courseId}, '')`.as('courseId'),
-          userId: sql<string>`${enrollments.userId}`.as('userId'),
-          assignedEmail: sql<string>`COALESCE(${enrollments.assignedEmail}, '')`.as('assignedEmail'),
-          enrolledAt: sql<Date>`${enrollments.enrolledAt}`.as('enrolledAt'),
-          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
-          quizScore: sql<number>`${enrollments.quizScore}`.as('quizScore'),
-          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
-          remindersSent: sql<number>`COALESCE(${enrollments.remindersSent}, 0)`.as('remindersSent'),
-          deadline: sql<Date>`${enrollments.deadline}`.as('deadline'),
-          status: sql<string>`COALESCE(${enrollments.status}, 'pending')`.as('status'),
-          completedAt: sql<Date>`${enrollments.completedAt}`.as('completedAt'),
-          assignmentToken: sql<string>`${enrollments.assignmentToken}`.as('assignmentToken'),
-          lastAccessedAt: sql<Date>`${enrollments.lastAccessedAt}`.as('lastAccessedAt'),
-          // User fields with safe defaults
-          userIdFromJoin: sql<string>`${users.id}`.as('userIdFromJoin'),
-          userName: sql<string>`COALESCE(${users.name}, 'Not registered')`.as('userName'),
-          userEmail: sql<string>`COALESCE(${users.email}, '')`.as('userEmail'),
-          userDepartment: sql<string>`COALESCE(${users.department}, 'N/A')`.as('userDepartment'),
-          userClientName: sql<string>`COALESCE(${users.clientName}, 'N/A')`.as('userClientName'),
+          // Enrollment fields
+          id: enrollments.id,
+          courseId: enrollments.courseId,
+          userId: enrollments.userId,
+          assignedEmail: enrollments.assignedEmail,
+          enrolledAt: enrollments.enrolledAt,
+          progress: enrollments.progress,
+          quizScore: enrollments.quizScore,
+          certificateIssued: enrollments.certificateIssued,
+          remindersSent: enrollments.remindersSent,
+          deadline: enrollments.deadline,
+          status: enrollments.status,
+          completedAt: enrollments.completedAt,
+          assignmentToken: enrollments.assignmentToken,
+          lastAccessedAt: enrollments.lastAccessedAt,
+          // User fields
+          userIdFromJoin: users.id,
+          userName: users.name,
+          userEmail: users.email,
+          userDepartment: users.department,
+          userClientName: users.clientName,
         })
         .from(enrollments)
         .leftJoin(users, eq(enrollments.userId, users.id))
