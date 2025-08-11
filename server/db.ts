@@ -194,6 +194,9 @@ async function ensureSchemaUpdates() {
     // Add password reset fields to users table
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token text`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry timestamp`);
+    
+    // Add missing renewal_count column to users table
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0`);
 
     console.log('Database schema updates completed successfully');
 
