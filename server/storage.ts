@@ -611,47 +611,52 @@ export class Storage {
   }
 
   async getCourseEnrollments(courseId: string): Promise<any[]> {
-    const enrollmentsData = await db
-      .select({
-        id: enrollments.id,
-        userId: enrollments.userId,
-        courseId: enrollments.courseId,
-        enrolledAt: enrollments.enrolledAt,
-        progress: enrollments.progress,
-        completedAt: enrollments.completedAt,
-        certificateIssued: enrollments.certificateIssued,
-        assignedEmail: enrollments.assignedEmail,
-        // Separate user fields instead of nested object
-        userName: users.name,
-        userEmail: users.email,
-        userDepartment: users.department,
-        userClientName: users.clientName,
-        userIdFromTable: users.id,
-      })
-      .from(enrollments)
-      .leftJoin(users, eq(enrollments.userId, users.id))
-      .where(eq(enrollments.courseId, courseId));
+    try {
+      const enrollmentsData = await db
+        .select({
+          id: enrollments.id,
+          userId: enrollments.userId,
+          courseId: enrollments.courseId,
+          enrolledAt: enrollments.enrolledAt,
+          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
+          completedAt: enrollments.completedAt,
+          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
+          assignedEmail: enrollments.assignedEmail,
+          // User fields with safe defaults
+          userName: users.name,
+          userEmail: users.email,
+          userDepartment: users.department,
+          userClientName: users.clientName,
+          userIdFromTable: users.id,
+        })
+        .from(enrollments)
+        .leftJoin(users, eq(enrollments.userId, users.id))
+        .where(eq(enrollments.courseId, courseId));
 
-    // Transform the flat structure back to nested for compatibility
-    const transformedData = enrollmentsData.map(enrollment => ({
-      id: enrollment.id,
-      userId: enrollment.userId,
-      courseId: enrollment.courseId,
-      enrolledAt: enrollment.enrolledAt,
-      progress: enrollment.progress,
-      completedAt: enrollment.completedAt,
-      certificateIssued: enrollment.certificateIssued,
-      assignedEmail: enrollment.assignedEmail,
-      user: enrollment.userIdFromTable ? {
-        id: enrollment.userIdFromTable,
-        name: enrollment.userName,
-        email: enrollment.userEmail,
-        department: enrollment.userDepartment,
-        clientName: enrollment.userClientName,
-      } : null,
-    }));
+      // Transform the flat structure back to nested for compatibility
+      const transformedData = enrollmentsData.map(enrollment => ({
+        id: enrollment.id || `temp-${Date.now()}`,
+        userId: enrollment.userId || null,
+        courseId: enrollment.courseId || courseId,
+        enrolledAt: enrollment.enrolledAt || null,
+        progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+        completedAt: enrollment.completedAt || null,
+        certificateIssued: Boolean(enrollment.certificateIssued),
+        assignedEmail: enrollment.assignedEmail || '',
+        user: enrollment.userIdFromTable ? {
+          id: enrollment.userIdFromTable,
+          name: enrollment.userName || 'Not registered',
+          email: enrollment.userEmail || enrollment.assignedEmail || '',
+          department: enrollment.userDepartment || 'N/A',
+          clientName: enrollment.userClientName || 'N/A',
+        } : null,
+      }));
 
-    return transformedData;
+      return transformedData;
+    } catch (error) {
+      console.error(`Error retrieving course enrollments for ${courseId}:`, error);
+      return [];
+    }
   }
 
   // Certificate management
@@ -940,21 +945,22 @@ export class Storage {
 
       const enrollmentsData = await db
         .select({
+          // Enrollment fields - use sql`` to ensure fields are not null
           id: enrollments.id,
           userId: enrollments.userId,
           courseId: enrollments.courseId,
           enrolledAt: enrollments.enrolledAt,
-          progress: enrollments.progress,
+          progress: sql<number>`COALESCE(${enrollments.progress}, 0)`.as('progress'),
           completedAt: enrollments.completedAt,
-          certificateIssued: enrollments.certificateIssued,
+          certificateIssued: sql<boolean>`COALESCE(${enrollments.certificateIssued}, false)`.as('certificateIssued'),
           assignedEmail: enrollments.assignedEmail,
           quizScore: enrollments.quizScore,
-          remindersSent: enrollments.remindersSent,
+          remindersSent: sql<number>`COALESCE(${enrollments.remindersSent}, 0)`.as('remindersSent'),
           deadline: enrollments.deadline,
-          status: enrollments.status,
+          status: sql<string>`COALESCE(${enrollments.status}, 'pending')`.as('status'),
           lastAccessedAt: enrollments.lastAccessedAt,
           assignmentToken: enrollments.assignmentToken,
-          // Separate user fields instead of nested object
+          // User fields with null checks
           userName: users.name,
           userEmail: users.email,
           userDepartment: users.department,
@@ -966,29 +972,32 @@ export class Storage {
         .where(eq(enrollments.courseId, courseId));
 
       // Transform the flat structure back to nested for compatibility
-      const transformedData = enrollmentsData.map(enrollment => ({
-        id: enrollment.id,
-        userId: enrollment.userId,
-        courseId: enrollment.courseId,
-        enrolledAt: enrollment.enrolledAt,
-        progress: enrollment.progress || 0,
-        completedAt: enrollment.completedAt,
-        certificateIssued: enrollment.certificateIssued || false,
-        assignedEmail: enrollment.assignedEmail,
-        quizScore: enrollment.quizScore,
-        remindersSent: enrollment.remindersSent || 0,
-        deadline: enrollment.deadline,
-        status: enrollment.status || 'pending',
-        lastAccessedAt: enrollment.lastAccessedAt,
-        assignmentToken: enrollment.assignmentToken,
-        user: enrollment.userIdFromTable ? {
-          id: enrollment.userIdFromTable,
-          name: enrollment.userName || '',
-          email: enrollment.userEmail || '',
-          department: enrollment.userDepartment || '',
-          clientName: enrollment.userClientName || '',
-        } : null,
-      }));
+      const transformedData = enrollmentsData.map(enrollment => {
+        // Ensure all required fields have safe defaults
+        return {
+          id: enrollment.id || `temp-${Date.now()}`,
+          userId: enrollment.userId || null,
+          courseId: enrollment.courseId || courseId,
+          enrolledAt: enrollment.enrolledAt || null,
+          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+          completedAt: enrollment.completedAt || null,
+          certificateIssued: Boolean(enrollment.certificateIssued),
+          assignedEmail: enrollment.assignedEmail || '',
+          quizScore: enrollment.quizScore ? Number(enrollment.quizScore) : null,
+          remindersSent: Math.max(0, Number(enrollment.remindersSent) || 0),
+          deadline: enrollment.deadline || null,
+          status: enrollment.status || 'pending',
+          lastAccessedAt: enrollment.lastAccessedAt || null,
+          assignmentToken: enrollment.assignmentToken || null,
+          user: enrollment.userIdFromTable ? {
+            id: enrollment.userIdFromTable,
+            name: enrollment.userName || 'Not registered',
+            email: enrollment.userEmail || enrollment.assignedEmail || '',
+            department: enrollment.userDepartment || 'N/A',
+            clientName: enrollment.userClientName || 'N/A',
+          } : null,
+        };
+      });
 
       console.log(`Found ${transformedData.length} assignments for course ${courseId}`);
       return transformedData;

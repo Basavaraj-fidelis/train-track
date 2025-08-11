@@ -1231,15 +1231,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get course assignments (for HR tracking)
   app.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
     try {
-      console.log(`Fetching assignments for course: ${req.params.courseId}`);
-      const assignments = await storage.getCourseAssignments(req.params.courseId);
-      console.log(`Found ${assignments.length} assignments for course ${req.params.courseId}`);
-      res.json(assignments);
+      const courseId = req.params.courseId;
+      
+      // Validate courseId
+      if (!courseId || courseId.trim() === '') {
+        return res.status(400).json({ message: "Course ID is required" });
+      }
+
+      console.log(`Fetching assignments for course: ${courseId}`);
+      
+      // Verify course exists first
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        console.log(`Course not found: ${courseId}`);
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      const assignments = await storage.getCourseAssignments(courseId);
+      console.log(`Found ${assignments.length} assignments for course ${courseId}`);
+      
+      // Ensure we always return an array
+      const validAssignments = Array.isArray(assignments) ? assignments : [];
+      
+      res.json(validAssignments);
     } catch (error) {
       console.error("Error fetching course assignments:", error);
       res.status(500).json({ 
         message: "Failed to fetch assignments",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
       });
     }
   });
@@ -1363,26 +1382,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get course enrollments (who is assigned to a specific course)
   app.get("/api/courses/:courseId/enrollments", requireAdmin, async (req, res) => {
     try {
-      console.log(`Fetching enrollments for course: ${req.params.courseId}`);
-      const enrollments = await storage.getCourseEnrollments(req.params.courseId);
-      console.log(`Found ${enrollments.length} enrollments for course ${req.params.courseId}`);
+      const courseId = req.params.courseId;
       
-      // Ensure consistent data structure
-      const formattedEnrollments = enrollments.map(enrollment => ({
-        ...enrollment,
-        assignedEmail: enrollment.assignedEmail || enrollment.user?.email,
-        userName: enrollment.user?.name || "Not registered",
-        userEmail: enrollment.user?.email || enrollment.assignedEmail,
-        clientName: enrollment.user?.clientName || "N/A",
-        department: enrollment.user?.department || "Not registered",
-      }));
+      // Validate courseId
+      if (!courseId || courseId.trim() === '') {
+        return res.status(400).json({ message: "Course ID is required" });
+      }
+
+      console.log(`Fetching enrollments for course: ${courseId}`);
+      
+      // Verify course exists first
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        console.log(`Course not found: ${courseId}`);
+        return res.status(404).json({ message: "Course not found" });
+      }
+
+      const enrollments = await storage.getCourseEnrollments(courseId);
+      console.log(`Found ${enrollments.length} enrollments for course ${courseId}`);
+      
+      // Ensure we always return an array with consistent data structure
+      const formattedEnrollments = (Array.isArray(enrollments) ? enrollments : []).map(enrollment => {
+        if (!enrollment || typeof enrollment !== 'object') {
+          return null;
+        }
+
+        return {
+          id: enrollment.id || `temp-${Date.now()}`,
+          userId: enrollment.userId || null,
+          courseId: enrollment.courseId || courseId,
+          enrolledAt: enrollment.enrolledAt || null,
+          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+          completedAt: enrollment.completedAt || null,
+          certificateIssued: Boolean(enrollment.certificateIssued),
+          assignedEmail: enrollment.assignedEmail || enrollment.user?.email || '',
+          userName: enrollment.user?.name || "Not registered",
+          userEmail: enrollment.user?.email || enrollment.assignedEmail || '',
+          clientName: enrollment.user?.clientName || "N/A",
+          department: enrollment.user?.department || "Not registered",
+          user: enrollment.user || null,
+        };
+      }).filter(Boolean);
       
       res.json(formattedEnrollments);
     } catch (error) {
       console.error("Error fetching course enrollments:", error);
       res.status(500).json({ 
         message: "Failed to fetch course enrollments",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
       });
     }
   });

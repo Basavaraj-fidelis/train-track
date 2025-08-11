@@ -26,54 +26,85 @@ export default function CourseAssignmentsTracker({
 
   const { data: assignments, isLoading, refetch, error } = useQuery({
     queryKey: ["/api/course-assignments", courseId],
-    enabled: open && !!courseId,
+    enabled: open && !!courseId && courseId.trim() !== '',
     queryFn: async () => {
-      console.log(`Fetching assignments for course: ${courseId}`);
-      const response = await apiRequest("GET", `/api/course-assignments/${courseId}`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to fetch assignments: ${response.status} - ${errorText}`);
-        throw new Error(`Failed to fetch assignments: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      console.log(`Received ${Array.isArray(data) ? data.length : 0} assignments:`, data);
-      
-      // Validate and clean the data
-      if (!Array.isArray(data)) {
-        console.warn('Expected array but received:', typeof data, data);
+      if (!courseId || courseId.trim() === '') {
+        console.warn('No courseId provided for assignments query');
         return [];
       }
+
+      console.log(`Fetching assignments for course: ${courseId}`);
       
-      // Ensure each assignment has required fields
-      const validatedData = data.map((assignment, index) => {
-        if (!assignment || typeof assignment !== 'object') {
-          console.warn(`Assignment at index ${index} is invalid:`, assignment);
-          return null;
+      try {
+        const response = await apiRequest("GET", `/api/course-assignments/${courseId}`);
+        
+        if (!response.ok) {
+          let errorMessage = `HTTP ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            errorMessage = await response.text() || errorMessage;
+          }
+          console.error(`Failed to fetch assignments: ${errorMessage}`);
+          throw new Error(`Failed to fetch assignments: ${errorMessage}`);
+        }
+
+        const data = await response.json();
+        console.log(`Received ${Array.isArray(data) ? data.length : 0} assignments:`, data);
+        
+        // Validate and clean the data
+        if (!Array.isArray(data)) {
+          console.warn('Expected array but received:', typeof data, data);
+          return [];
         }
         
-        return {
-          id: assignment.id || `temp-${index}`,
-          courseId: assignment.courseId || courseId,
-          userId: assignment.userId || null,
-          assignedEmail: assignment.assignedEmail || '',
-          enrolledAt: assignment.enrolledAt || null,
-          progress: Math.max(0, Math.min(100, assignment.progress || 0)),
-          quizScore: assignment.quizScore || null,
-          certificateIssued: assignment.certificateIssued || false,
-          remindersSent: assignment.remindersSent || 0,
-          deadline: assignment.deadline || null,
-          status: assignment.status || 'pending',
-          completedAt: assignment.completedAt || null,
-          user: assignment.user || null,
-        };
-      }).filter(Boolean);
-      
-      console.log(`Validated ${validatedData.length} assignments`);
-      return validatedData;
+        // Ensure each assignment has required fields with better validation
+        const validatedData = data.map((assignment, index) => {
+          if (!assignment || typeof assignment !== 'object') {
+            console.warn(`Assignment at index ${index} is invalid:`, assignment);
+            return null;
+          }
+          
+          // More robust validation
+          const validatedAssignment = {
+            id: assignment.id || `temp-${Date.now()}-${index}`,
+            courseId: assignment.courseId || courseId,
+            userId: assignment.userId || null,
+            assignedEmail: String(assignment.assignedEmail || '').trim(),
+            enrolledAt: assignment.enrolledAt || null,
+            progress: Math.max(0, Math.min(100, Number(assignment.progress) || 0)),
+            quizScore: assignment.quizScore ? Number(assignment.quizScore) : null,
+            certificateIssued: Boolean(assignment.certificateIssued),
+            remindersSent: Math.max(0, Number(assignment.remindersSent) || 0),
+            deadline: assignment.deadline || null,
+            status: assignment.status || 'pending',
+            completedAt: assignment.completedAt || null,
+            assignmentToken: assignment.assignmentToken || null,
+            lastAccessedAt: assignment.lastAccessedAt || null,
+            user: assignment.user && typeof assignment.user === 'object' ? {
+              id: assignment.user.id || null,
+              name: String(assignment.user.name || 'Not registered').trim(),
+              email: String(assignment.user.email || assignment.assignedEmail || '').trim(),
+              department: String(assignment.user.department || 'N/A').trim(),
+              clientName: String(assignment.user.clientName || 'N/A').trim(),
+            } : null,
+          };
+
+          return validatedAssignment;
+        }).filter(Boolean);
+        
+        console.log(`Validated ${validatedData.length} assignments`);
+        return validatedData;
+      } catch (error) {
+        console.error('Error in assignments query:', error);
+        throw error;
+      }
     },
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     refetchOnWindowFocus: false,
+    staleTime: 30000, // Cache for 30 seconds
   });
 
   const sendRemindersMutation = useMutation({
@@ -199,13 +230,16 @@ export default function CourseAssignmentsTracker({
                 variant="outline"
                 onClick={() => {
                   console.log("Refreshing course assignments...");
-                  refetch();
-                  queryClient.invalidateQueries({ queryKey: ["/api/course-assignments", courseId] });
+                  queryClient.removeQueries({ queryKey: ["/api/course-assignments", courseId] });
+                  setTimeout(() => {
+                    refetch();
+                  }, 100);
                 }}
+                disabled={isLoading}
                 size="sm"
               >
-                <RefreshCw size={16} className="mr-2" />
-                Refresh
+                <RefreshCw size={16} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                {isLoading ? 'Loading...' : 'Refresh'}
               </Button>
             </div>
           </div>
