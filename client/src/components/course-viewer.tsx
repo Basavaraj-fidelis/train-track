@@ -262,10 +262,11 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
                         </video>
                       )
                     ) : (
-                      <div className="w-full aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                      <div className="w-full aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
                         <div className="text-center">
                           <PlayCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500">No video available for this course</p>
+                          <p className="text-gray-400">No video available for this course</p>
+                          <p className="text-gray-500 text-sm mt-2">Please contact your administrator to add course content</p>
                         </div>
                       </div>
                     )}
