@@ -955,16 +955,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enrollment routes
-  app.get("/api/my-enrollments", async (req, res) => {
+  app.get("/api/my-enrollments", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
+      console.log('Fetching enrollments for user:', req.session.userId);
       const enrollments = await storage.getUserEnrollments(req.session.userId);
-      res.json(enrollments);
+      console.log('Found enrollments:', enrollments.length);
+      res.json(enrollments || []);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch enrollments" });
+      console.error('Error fetching enrollments:', error);
+      res.status(500).json({ 
+        message: "Failed to fetch enrollments",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 

@@ -441,73 +441,21 @@ export class Storage {
   }
 
   async getUserEnrollments(userId: string): Promise<any[]> {
-    const enrollmentsData = await db
-      .select({
-        id: enrollments.id,
-        userId: enrollments.userId,
-        courseId: enrollments.courseId,
-        enrolledAt: enrollments.enrolledAt,
-        completedAt: enrollments.completedAt,
-        progress: enrollments.progress,
-        quizScore: enrollments.quizScore,
-        certificateIssued: enrollments.certificateIssued,
-        expiresAt: enrollments.expiresAt,
-        isExpired: enrollments.isExpired,
-        renewalCount: enrollments.renewalCount,
-        assignedEmail: enrollments.assignedEmail,
-        assignmentToken: enrollments.assignmentToken,
-        deadline: enrollments.deadline,
-        status: enrollments.status,
-        remindersSent: enrollments.remindersSent,
-        lastAccessedAt: sql<Date>`${enrollments.completedAt}`.as('lastAccessedAt'),
-        // Include ALL course fields including videoPath
-        courseId2: courses.id,
-        courseTitle: courses.title,
-        courseDescription: courses.description,
-        courseVideoPath: courses.videoPath,
-        courseDuration: courses.duration,
-        courseType: courses.courseType,
-        courseCreatedAt: courses.createdAt,
-        courseIsActive: courses.isActive,
-        courseRenewalPeriodMonths: courses.renewalPeriodMonths,
-        courseIsComplianceCourse: courses.isComplianceCourse,
-      })
-      .from(enrollments)
-      .leftJoin(courses, eq(enrollments.courseId, courses.id))
-      .where(eq(enrollments.userId, userId))
-      .orderBy(enrollments.enrolledAt);
+    try {
+      const results = await db
+        .select()
+        .from(enrollments)
+        .leftJoin(courses, eq(enrollments.courseId, courses.id))
+        .where(eq(enrollments.userId, userId));
 
-    return enrollmentsData.map(enrollment => ({
-      id: enrollment.id,
-      userId: enrollment.userId,
-      courseId: enrollment.courseId,
-      enrolledAt: enrollment.enrolledAt,
-      completedAt: enrollment.completedAt,
-      progress: enrollment.certificateIssued ? 100 : (enrollment.progress || 0), // Show 100% if certificate issued
-      quizScore: enrollment.quizScore,
-      certificateIssued: enrollment.certificateIssued,
-      expiresAt: enrollment.expiresAt,
-      isExpired: enrollment.isExpired,
-      renewalCount: enrollment.renewalCount,
-      assignedEmail: enrollment.assignedEmail,
-      assignmentToken: enrollment.assignmentToken,
-      deadline: enrollment.deadline,
-      status: enrollment.certificateIssued ? "completed" : (enrollment.status || "pending"),
-      remindersSent: enrollment.remindersSent,
-      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
-      course: enrollment.courseId2 ? {
-        id: enrollment.courseId2,
-        title: enrollment.courseTitle,
-        description: enrollment.courseDescription,
-        videoPath: enrollment.courseVideoPath, // Include videoPath
-        duration: enrollment.courseDuration,
-        courseType: enrollment.courseType,
-        createdAt: enrollment.courseCreatedAt,
-        isActive: enrollment.courseIsActive,
-        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
-        isComplianceCourse: enrollment.courseIsComplianceCourse,
-      } : null,
-    }));
+      return results.map(result => ({
+        ...result.enrollments,
+        course: result.courses
+      })).filter(enrollment => enrollment.course); // Filter out enrollments without valid courses
+    } catch (error) {
+      console.error('Database error in getUserEnrollments:', error);
+      return [];
+    }
   }
 
   async getUserActiveEnrollments(userId: string): Promise<Enrollment[]> {
