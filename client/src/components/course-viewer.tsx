@@ -40,8 +40,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
   // Also added error handling for local videos and a placeholder for no video available.
   console.log('CourseId from enrollment.course.id:', enrollment?.course?.id);
   console.log('Course videoPath:', enrollment?.course?.videoPath);
-  console.log('Course youtubeUrl:', enrollment?.course?.youtubeUrl);
-  console.log('Course has video content:', !!(enrollment?.course?.videoPath || enrollment?.course?.youtubeUrl));
+  console.log('Course has video content:', !!enrollment?.course?.videoPath);
 
 
   const courseId = enrollment?.course?.id || enrollment?.courseId;
@@ -249,7 +248,7 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
       <Card>
         <CardContent className="pt-6">
           <div className="aspect-video bg-gray-900 rounded-lg mb-4 relative">
-            {course.videoPath ? (
+            {course.videoPath && course.videoPath.trim() ? (
               // Check if videoPath contains YouTube URL
               course.videoPath.includes('youtube.com') || course.videoPath.includes('youtu.be') ? (
                 <iframe
