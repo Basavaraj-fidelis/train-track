@@ -92,6 +92,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check database health on startup
   await checkDatabaseHealth();
 
+  // Fix progress for completed courses on startup
+  try {
+    const fixedCount = await storage.fixCompletedCourseProgress();
+    if (fixedCount > 0) {
+      console.log(`Fixed progress for ${fixedCount} completed enrollments`);
+    }
+  } catch (error) {
+    console.error('Failed to fix completed course progress:', error);
+  }
+
   // Database reset endpoint (for development/setup only)
   app.post("/api/admin/reset-database", async (req, res) => {
     try {
@@ -848,12 +858,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('Quiz validation:', { passingScore, isPassing, currentScore: score });
 
+      // Determine progress based on completion status
+      let newProgress;
+      if (enrollment.certificateIssued) {
+        // If certificate is already issued, keep progress at 100%
+        newProgress = 100;
+      } else if (isPassing) {
+        // If passing but no certificate yet, set to 95% (awaiting acknowledgment)
+        newProgress = 95;
+      } else {
+        // If not passing, keep existing video progress or set to 90% max
+        newProgress = Math.min(90, enrollment.progress || 0);
+      }
+
       // Update enrollment with latest quiz attempt
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: isPassing ? 95 : Math.min(90, enrollment.progress || 0), // Mark as 95% if passing (awaiting acknowledgment), keep existing progress if not passing
-        completedAt: null, // Don't mark completed until certificate is acknowledged
-        status: isPassing ? "accessed" : "pending"
+        progress: newProgress,
+        completedAt: enrollment.certificateIssued ? enrollment.completedAt : null, // Keep existing completion date if certificate issued
+        status: enrollment.certificateIssued ? "completed" : (isPassing ? "accessed" : "pending")
       });
 
       let certificate = null;
@@ -967,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update enrollment to mark certificate as issued and progress to 100%
       await storage.updateEnrollment(enrollment.id, {
         certificateIssued: true,
-        progress: 100, // Set progress to 100% when certificate is generated
+        progress: 100, // Ensure progress is exactly 100% when certificate is issued
         completedAt: new Date(),
         expiresAt: expiresAt,
         isExpired: false,

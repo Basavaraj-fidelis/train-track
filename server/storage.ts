@@ -998,13 +998,13 @@ export class Storage {
         .orderBy(desc(enrollments.enrolledAt));
 
       console.log(`Raw query result count: ${result.length}`);
-      
+
       // Log the raw result for debugging
       if (result.length === 0) {
         console.log(`No enrollments found for course ${courseId}. Let's check what courses do exist:`);
         const allCourses = await db.select({ id: courses.id, title: courses.title }).from(courses).limit(5);
         console.log(`Sample courses in database:`, allCourses);
-        
+
         const allEnrollments = await db.select({ 
           id: enrollments.id, 
           courseId: enrollments.courseId 
@@ -1060,10 +1060,36 @@ export class Storage {
   }
 
   async getTotalRemindersSent(): Promise<number> {
-    const [result] = await db
+    const result = await db
       .select({ total: sql<number>`SUM(${enrollments.remindersSent})` })
       .from(enrollments);
-    return result?.total || 0;
+
+    return result[0]?.total || 0;
+  }
+
+  // Fix progress for enrollments that have certificates but progress < 100%
+  async fixCompletedCourseProgress() {
+    const enrollmentsToFix = await db
+      .select()
+      .from(enrollments)
+      .where(and(
+        eq(enrollments.certificateIssued, true),
+        lt(enrollments.progress, 100)
+      ));
+
+    let fixedCount = 0;
+    for (const enrollment of enrollmentsToFix) {
+      await db
+        .update(enrollments)
+        .set({ 
+          progress: 100,
+          status: "completed"
+        })
+        .where(eq(enrollments.id, enrollment.id));
+      fixedCount++;
+    }
+
+    return fixedCount;
   }
 
   async getCourseDeletionImpact(courseId: string): Promise<{
