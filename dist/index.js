@@ -287,6 +287,8 @@ var Storage = class {
     return updatedUser || null;
   }
   async deleteUser(id) {
+    await db.delete(certificates).where(eq(certificates.userId, id));
+    await db.delete(enrollments).where(eq(enrollments.userId, id));
     const result = await db.delete(users).where(eq(users.id, id));
     return result.rowCount > 0;
   }
@@ -302,7 +304,7 @@ var Storage = class {
     const courseToInsert = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.youtubeUrl || courseData.videoPath,
+      videoPath: courseData.youtubeUrl || courseData.videoPath || "",
       // Store YouTube URL or video file path
       duration: courseData.duration || 0,
       createdBy: courseData.createdBy || "admin",
@@ -323,6 +325,13 @@ var Storage = class {
   }
   async getCourse(id) {
     const [course] = await db.select().from(courses).where(eq(courses.id, id));
+    console.log("Retrieved course data for ID:", id);
+    console.log("Course details:", {
+      id: course?.id,
+      title: course?.title,
+      videoPath: course?.videoPath,
+      hasVideoPath: !!course?.videoPath
+    });
     return course || null;
   }
   async getAllCourses() {
@@ -331,7 +340,7 @@ var Storage = class {
   async updateCourse(id, courseData) {
     const updateData = { ...courseData };
     if (courseData.youtubeUrl !== void 0) {
-      updateData.videoPath = courseData.youtubeUrl;
+      updateData.videoPath = courseData.youtubeUrl || "";
       delete updateData.youtubeUrl;
     }
     delete updateData.questions;
@@ -357,8 +366,38 @@ var Storage = class {
     return updatedCourse || null;
   }
   async deleteCourse(id) {
-    const result = await db.update(courses).set({ isActive: false }).where(eq(courses.id, id));
-    return result.rowCount > 0;
+    try {
+      return await db.transaction(async (tx) => {
+        const enrolledUsers = await tx.select({
+          userId: enrollments.userId
+        }).from(enrollments).where(eq(enrollments.courseId, id));
+        const usersToDelete = [];
+        for (const enrollment of enrolledUsers) {
+          if (enrollment.userId) {
+            const otherEnrollmentsCount = await tx.select({ count: count() }).from(enrollments).where(
+              and(
+                eq(enrollments.userId, enrollment.userId),
+                sql3`${enrollments.courseId} != ${id}`
+              )
+            );
+            if ((otherEnrollmentsCount[0]?.count || 0) === 0) {
+              usersToDelete.push(enrollment.userId);
+            }
+          }
+        }
+        await tx.delete(certificates).where(eq(certificates.courseId, id));
+        await tx.delete(enrollments).where(eq(enrollments.courseId, id));
+        await tx.delete(quizzes).where(eq(quizzes.courseId, id));
+        if (usersToDelete.length > 0) {
+          await tx.delete(users).where(inArray(users.id, usersToDelete));
+        }
+        const result = await tx.delete(courses).where(eq(courses.id, id));
+        return result.rowCount > 0;
+      });
+    } catch (error) {
+      console.error("Error during course deletion:", error);
+      throw new Error("Failed to delete course and related data");
+    }
   }
   async autoEnrollInComplianceCourses(employeeIdentifier) {
     const complianceCourses = await db.select().from(courses).where(
@@ -458,30 +497,76 @@ var Storage = class {
     return result.rowCount > 0;
   }
   async getUserEnrollments(userId) {
-    return db.select({
+    const enrollmentsData = await db.select({
       id: enrollments.id,
+      userId: enrollments.userId,
+      courseId: enrollments.courseId,
       enrolledAt: enrollments.enrolledAt,
       completedAt: enrollments.completedAt,
       progress: enrollments.progress,
       quizScore: enrollments.quizScore,
       certificateIssued: enrollments.certificateIssued,
-      deadline: enrollments.deadline,
-      status: enrollments.status,
       expiresAt: enrollments.expiresAt,
       isExpired: enrollments.isExpired,
+      renewalCount: enrollments.renewalCount,
+      assignedEmail: enrollments.assignedEmail,
+      assignmentToken: enrollments.assignmentToken,
+      deadline: enrollments.deadline,
+      status: enrollments.status,
+      remindersSent: enrollments.remindersSent,
+      lastAccessedAt: sql3`${enrollments.completedAt}`.as("lastAccessedAt"),
       course: {
         id: courses.id,
         title: courses.title,
         description: courses.description,
         duration: courses.duration,
-        videoPath: courses.videoPath,
-        // This contains either YouTube URL or video file path
-        youtubeUrl: courses.videoPath,
-        // Alias for compatibility
         courseType: courses.courseType,
-        renewalPeriodMonths: courses.renewalPeriodMonths
+        renewalPeriodMonths: courses.renewalPeriodMonths,
+        isComplianceCourse: courses.isComplianceCourse
       }
-    }).from(enrollments).innerJoin(courses, eq(enrollments.courseId, courses.id)).where(eq(enrollments.userId, userId)).orderBy(desc(enrollments.enrolledAt));
+    }).from(enrollments).leftJoin(courses, eq(enrollments.courseId, courses.id)).where(eq(enrollments.userId, userId)).orderBy(enrollments.enrolledAt);
+    return enrollmentsData.map((enrollment) => ({
+      ...enrollment,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+    }));
+  }
+  async getUserActiveEnrollments(userId) {
+    const enrollmentsData = await db.select({
+      id: enrollments.id,
+      userId: enrollments.userId,
+      courseId: enrollments.courseId,
+      enrolledAt: enrollments.enrolledAt,
+      completedAt: enrollments.completedAt,
+      progress: enrollments.progress,
+      quizScore: enrollments.quizScore,
+      certificateIssued: enrollments.certificateIssued,
+      expiresAt: enrollments.expiresAt,
+      isExpired: enrollments.isExpired,
+      renewalCount: enrollments.renewalCount,
+      assignedEmail: enrollments.assignedEmail,
+      assignmentToken: enrollments.assignmentToken,
+      deadline: enrollments.deadline,
+      status: enrollments.status,
+      remindersSent: enrollments.remindersSent,
+      lastAccessedAt: sql3`${enrollments.completedAt}`.as("lastAccessedAt"),
+      course: {
+        id: courses.id,
+        title: courses.title,
+        description: courses.description,
+        duration: courses.duration,
+        courseType: courses.courseType,
+        renewalPeriodMonths: courses.renewalPeriodMonths,
+        isComplianceCourse: courses.isComplianceCourse
+      }
+    }).from(enrollments).leftJoin(courses, eq(enrollments.courseId, courses.id)).where(and(
+      eq(enrollments.userId, userId),
+      eq(courses.isActive, true)
+      // Only check enrollments for active courses
+    )).orderBy(enrollments.enrolledAt);
+    return enrollmentsData.map((enrollment) => ({
+      ...enrollment,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+    }));
   }
   async getAllEnrollments() {
     return db.select({
@@ -769,6 +854,47 @@ var Storage = class {
     const [result] = await db.select({ total: sql3`SUM(${enrollments.remindersSent})` }).from(enrollments);
     return result?.total || 0;
   }
+  async getCourseDeletionImpact(courseId) {
+    const course = await this.getCourse(courseId);
+    if (!course) {
+      return {
+        course: null,
+        totalEnrollments: 0,
+        usersToDelete: [],
+        usersToKeep: [],
+        certificatesCount: 0,
+        quizzesCount: 0
+      };
+    }
+    const courseEnrollments = await this.getCourseEnrollments(courseId);
+    const enrolledUserIds = [...new Set(courseEnrollments.map((e) => e.user?.id).filter(Boolean))];
+    const usersToDelete = [];
+    const usersToKeep = [];
+    for (const userId of enrolledUserIds) {
+      if (userId) {
+        const user = await this.getUser(userId);
+        const userEnrollments = await this.getUserEnrollments(userId);
+        const otherCoursesCount = userEnrollments.filter((e) => e.courseId !== courseId).length;
+        if (otherCoursesCount === 0 && user) {
+          usersToDelete.push(user);
+        } else if (user) {
+          usersToKeep.push(user);
+        }
+      }
+    }
+    const [certificatesResult, quizzesResult] = await Promise.all([
+      db.select({ count: count() }).from(certificates).where(eq(certificates.courseId, courseId)),
+      db.select({ count: count() }).from(quizzes).where(eq(quizzes.courseId, courseId))
+    ]);
+    return {
+      course,
+      totalEnrollments: courseEnrollments.length,
+      usersToDelete,
+      usersToKeep,
+      certificatesCount: certificatesResult[0]?.count || 0,
+      quizzesCount: quizzesResult[0]?.count || 0
+    };
+  }
   async cleanupExpiredAssignments() {
     const result = await db.update(enrollments).set({ status: "expired", isExpired: true }).where(
       and(
@@ -1000,15 +1126,9 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/employees/:id", requireAdmin, async (req, res) => {
     try {
-      const enrollments2 = await storage.getUserEnrollments(req.params.id);
-      if (enrollments2.length > 0) {
-        return res.status(400).json({
-          message: "Cannot delete employee with active course enrollments. Please remove enrollments first."
-        });
-      }
       const success = await storage.deleteUser(req.params.id);
       if (success) {
-        res.json({ success: true });
+        res.json({ success: true, message: "Employee and all related data deleted successfully" });
       } else {
         res.status(404).json({ message: "Employee not found" });
       }
@@ -1058,11 +1178,16 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: "Invalid questions format" });
         }
       }
+      let finalVideoPath = "";
+      if (req.file) {
+        finalVideoPath = req.file.filename;
+      } else if (youtubeUrl) {
+        finalVideoPath = youtubeUrl.trim();
+      }
       const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        videoPath: req.file ? req.file.filename : void 0,
-        youtubeUrl: youtubeUrl ? youtubeUrl.trim() : void 0,
+        videoPath: finalVideoPath,
         courseType: courseType || "one-time",
         createdBy: req.session.userId,
         questions: parsedQuestions
@@ -1093,10 +1218,8 @@ async function registerRoutes(app2) {
       };
       if (req.file) {
         updateData.videoPath = req.file.filename;
-        updateData.youtubeUrl = null;
-      } else if (youtubeUrl) {
-        updateData.youtubeUrl = youtubeUrl;
-        updateData.videoPath = null;
+      } else if (youtubeUrl !== void 0) {
+        updateData.videoPath = youtubeUrl.trim() || "";
       }
       if (questions) {
         let parsedQuestions = [];
@@ -1124,13 +1247,72 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to update course" });
     }
   });
+  app2.get("/api/courses/:id/deletion-impact", requireAdmin, async (req, res) => {
+    try {
+      const impact = await storage.getCourseDeletionImpact(req.params.id);
+      if (!impact.course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      res.json({
+        course: impact.course,
+        impact: {
+          totalEnrollments: impact.totalEnrollments,
+          usersWillBeDeleted: impact.usersToDelete.length,
+          usersWillBeKept: impact.usersToKeep.length,
+          certificatesWillBeDeleted: impact.certificatesCount,
+          quizzesWillBeDeleted: impact.quizzesCount
+        },
+        usersToDelete: impact.usersToDelete.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          employeeId: u.employeeId
+        })),
+        usersToKeep: impact.usersToKeep.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          employeeId: u.employeeId
+        }))
+      });
+    } catch (error) {
+      console.error("Error getting deletion impact:", error);
+      res.status(500).json({
+        message: "Failed to get deletion impact",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
+    }
+  });
   app2.delete("/api/courses/:id", requireAdmin, async (req, res) => {
     try {
-      await storage.deleteCourse(req.params.id);
-      res.json({ message: "Course deleted successfully" });
+      const course = await storage.getCourse(req.params.id);
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" });
+      }
+      const enrollments2 = await storage.getCourseEnrollments(req.params.id);
+      const enrolledUserIds = [...new Set(enrollments2.map((e) => e.user?.id).filter(Boolean))];
+      const success = await storage.deleteCourse(req.params.id);
+      if (success) {
+        console.log(`Course deleted: ${course.title} (ID: ${req.params.id})`);
+        console.log(`Cleaned up ${enrollments2.length} enrollments for ${enrolledUserIds.length} users`);
+        res.json({
+          success: true,
+          message: "Course and all related data deleted successfully",
+          details: {
+            courseName: course.title,
+            enrollmentsRemoved: enrollments2.length,
+            usersAffected: enrolledUserIds.length
+          }
+        });
+      } else {
+        res.status(404).json({ message: "Course not found" });
+      }
     } catch (error) {
       console.error("Course deletion error:", error);
-      res.status(500).json({ message: "Failed to delete course" });
+      res.status(500).json({
+        message: "Failed to delete course and related data",
+        error: process.env.NODE_ENV === "development" ? error.message : void 0
+      });
     }
   });
   app2.get("/api/courses/:id", async (req, res) => {
