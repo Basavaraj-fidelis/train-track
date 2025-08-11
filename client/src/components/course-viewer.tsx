@@ -202,8 +202,8 @@ export default function CourseViewer({ enrollment }: CourseViewerProps) {
     const match = url.match(youtubeRegex);
 
     if (match && match[1]) {
-      // Parameters to hide controls, YouTube logo, and related videos for clean learning experience
-      return `https://www.youtube.com/embed/${match[1]}?autoplay=0&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&fs=1&cc_load_policy=0&disablekb=0`;
+      // Parameters to hide controls, YouTube logo, title overlay, and related videos for clean learning experience
+      return `https://www.youtube.com/embed/${match[1]}?autoplay=0&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&fs=1&cc_load_policy=0&disablekb=0&title=0&byline=0&portrait=0`;
     }
 
     return url; // Return as-is for other video URLs

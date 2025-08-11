@@ -133,8 +133,8 @@ export default function CourseCreation() {
 
     if (match && match[2].length === 11) {
       const videoId = match[2];
-      // Add parameters to hide controls, YouTube logo, and related videos for clean learning experience
-      return `https://www.youtube.com/embed/${videoId}?controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`;
+      // Add parameters to hide controls, YouTube logo, title overlay, and related videos for clean learning experience
+      return `https://www.youtube.com/embed/${videoId}?controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&title=0&byline=0&portrait=0`;
     }
 
     return "";
