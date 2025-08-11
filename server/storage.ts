@@ -478,7 +478,7 @@ export class Storage {
       courseId: enrollment.courseId,
       enrolledAt: enrollment.enrolledAt,
       completedAt: enrollment.completedAt,
-      progress: enrollment.progress,
+      progress: enrollment.certificateIssued ? 100 : (enrollment.progress || 0), // Show 100% if certificate issued
       quizScore: enrollment.quizScore,
       certificateIssued: enrollment.certificateIssued,
       expiresAt: enrollment.expiresAt,
@@ -487,7 +487,7 @@ export class Storage {
       assignedEmail: enrollment.assignedEmail,
       assignmentToken: enrollment.assignmentToken,
       deadline: enrollment.deadline,
-      status: enrollment.status,
+      status: enrollment.certificateIssued ? "completed" : (enrollment.status || "pending"),
       remindersSent: enrollment.remindersSent,
       lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
       course: enrollment.courseId2 ? {
@@ -1002,6 +1002,8 @@ export class Storage {
       return transformedData;
     } catch (error) {
       console.error(`Error retrieving course assignments for ${courseId}:`, error);
+      // This is where the Drizzle ORM error would occur if fields were null/undefined
+      // The previous fix for getCourseAssignments should resolve this.
       return [];
     }
   }

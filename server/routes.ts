@@ -832,8 +832,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update enrollment with latest quiz attempt
       const updated = await storage.updateEnrollment(enrollment.id, {
         quizScore: score,
-        progress: isPassing ? 95 : 90, // Mark as 95% if passing (awaiting acknowledgment), 90% if not passing
+        progress: isPassing ? 95 : Math.min(90, enrollment.progress || 0), // Mark as 95% if passing (awaiting acknowledgment), keep existing progress if not passing
         completedAt: null, // Don't mark completed until certificate is acknowledged
+        status: isPassing ? "accessed" : "pending"
       });
 
       let certificate = null;
@@ -950,7 +951,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         progress: 100, // Set progress to 100% when certificate is generated
         completedAt: new Date(),
         expiresAt: expiresAt,
-        isExpired: false
+        isExpired: false,
+        status: "completed"
       });
 
       // Send certificate email to both user and HR

@@ -158,9 +158,30 @@ async function resetDatabase() {
   }
 }
 
+// Fix existing enrollments with certificates to have 100% progress
+async function fixExistingEnrollments() {
+  const client = await pool.connect();
+  try {
+    console.log('Fixing existing enrollments with certificates...');
+    
+    const result = await client.query(`
+      UPDATE enrollments 
+      SET progress = 100, status = 'completed'
+      WHERE certificate_issued = true AND (progress < 100 OR progress IS NULL)
+    `);
+    
+    console.log(`Fixed ${result.rowCount} enrollments to show 100% progress`);
+  } catch (error) {
+    console.error('Error fixing enrollments:', error);
+  } finally {
+    client.release();
+  }
+}
+
 resetDatabase()
-  .then(() => {
+  .then(async () => {
     console.log('Reset operation completed');
+    await fixExistingEnrollments();
     process.exit(0);
   })
   .catch((error) => {
