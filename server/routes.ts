@@ -246,6 +246,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Password verification
+      if (!password) {
+        return res.status(401).json({ message: "Password is required" });
+      }
+      
       if (user.password) {
         const isValidPassword = await bcrypt.compare(password, user.password);
         if (!isValidPassword) {

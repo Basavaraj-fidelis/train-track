@@ -1193,6 +1193,54 @@ export class Storage {
       );
     return result.rowCount;
   }
+
+  // Password reset token methods
+  async createPasswordResetToken(tokenData: { userId: string; token: string; expiresAt: Date }): Promise<void> {
+    // Update user with reset token and expiry
+    await db
+      .update(users)
+      .set({
+        resetToken: tokenData.token,
+        resetTokenExpiry: tokenData.expiresAt
+      })
+      .where(eq(users.id, tokenData.userId));
+  }
+
+  async getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: Date } | null> {
+    const [user] = await db
+      .select({
+        id: users.id,
+        resetTokenExpiry: users.resetTokenExpiry
+      })
+      .from(users)
+      .where(eq(users.resetToken, token));
+    
+    if (!user || !user.resetTokenExpiry) {
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      expiresAt: user.resetTokenExpiry
+    };
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        resetToken: null,
+        resetTokenExpiry: null
+      })
+      .where(eq(users.resetToken, token));
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, userId));
+  }
 }
 
 export const storage = new Storage();

@@ -18,7 +18,7 @@ export const users = pgTable("users", {
   position: text("position"),
   joinDate: timestamp("join_date").defaultNow(),
   isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  renewalCount: integer("renewal_count").default(0),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
 });

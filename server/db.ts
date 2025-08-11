@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ 
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false,
@@ -23,19 +23,19 @@ export const db = drizzle({ client: pool, schema });
 export async function resetDatabase() {
   try {
     console.log('Starting database reset...');
-    
+
     // Drop all tables in correct order (due to foreign key constraints)
     await db.execute(sql`DROP TABLE IF EXISTS certificates CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS enrollments CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS quizzes CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS courses CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS users CASCADE`);
-    
+
     console.log('All tables dropped successfully');
-    
+
     // Recreate all tables
     await createTables();
-    
+
     console.log('Database reset completed successfully');
     return true;
   } catch (error) {
@@ -48,7 +48,7 @@ export async function resetDatabase() {
 export async function createTables() {
   try {
     console.log('Creating tables...');
-    
+
     // Create users table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS users (
@@ -65,6 +65,8 @@ export async function createTables() {
         position TEXT,
         join_date TIMESTAMP DEFAULT NOW(),
         is_active BOOLEAN DEFAULT true,
+        reset_token TEXT,
+        reset_token_expiry TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -159,10 +161,10 @@ async function ensureSchemaUpdates() {
 
     // Check if tables exist, if not create them
     const tablesExist = await db.execute(sql`
-      SELECT COUNT(*) as count FROM information_schema.tables 
+      SELECT COUNT(*) as count FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'users'
     `);
-    
+
     if (tablesExist[0]?.count === 0) {
       console.log('Tables do not exist, creating initial schema...');
       await createTables();
@@ -188,11 +190,11 @@ async function ensureSchemaUpdates() {
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0`);
     await db.execute(sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
-    
+
     // Add password reset fields to users table
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token text`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry timestamp`);
-    
+
     console.log('Database schema updates completed successfully');
 
     // Update courses table to include youtube_url
