@@ -59,7 +59,7 @@ export const enrollments = pgTable("enrollments", {
   userId: varchar("user_id").references(() => users.id),
   courseId: varchar("course_id").references(() => courses.id).notNull(),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
+  completedAt: timestamp("completedAt"),
   progress: integer("progress").default(0), // percentage 0-100
   quizScore: integer("quiz_score"),
   certificateIssued: boolean("certificate_issued").default(false),
@@ -68,11 +68,9 @@ export const enrollments = pgTable("enrollments", {
   assignmentToken: text("assignment_token"), // Unique token for email access
   deadline: timestamp("deadline"), // Course completion deadline
   status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
-  remindersSent: integer("reminders_sent").default(0),
-  // Compliance tracking
-  expiresAt: timestamp("expires_at"), // When the certification expires
-  isExpired: boolean("is_expired").default(false),
-  renewalCount: integer("renewal_count").default(0), // Track how many times renewed
+  remindersSent: integer("reminders_sent").default(0).notNull(),
+  renewalCount: integer("renewal_count").default(0).notNull(),
+  lastAccessedAt: timestamp("last_accessed_at"),
 });
 
 export const certificates = pgTable("certificates", {

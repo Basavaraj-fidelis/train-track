@@ -431,15 +431,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
       const { email } = req.body;
-      const user = await storage.getUserByEmail(email);
+      
+      if (!email || !email.trim()) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      console.log(`Password reset requested for email: ${email}`);
+
+      const user = await storage.getUserByEmail(email.trim());
 
       if (!user || user.role !== 'employee' || !user.isActive) {
-        return res.status(400).json({ message: "If an account with that email exists, a reset link has been sent." });
+        console.log(`Password reset: User not found or not eligible for email: ${email}`);
+        return res.json({ message: "If an account with that email exists, a reset link has been sent." });
       }
 
       // Generate reset token
       const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Token valid for 24 hours
+
+      console.log(`Creating password reset token for user: ${user.id}`);
 
       await storage.createPasswordResetToken({
         userId: user.id,
@@ -449,27 +459,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
 
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@traintrack.com',
-        to: user.email,
-        subject: 'Password Reset Request for TrainTrack',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">Password Reset Request</h2>
-            <p>You requested to reset your password. Please click the link below to set a new password:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Reset Password
-              </a>
-            </div>
-            <p style="color: #666; font-size: 14px;">
-              This link will expire in 24 hours. If you did not request this, please ignore this email.
-            </p>
-          </div>
-        `,
+      console.log('SMTP Configuration:', {
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: process.env.SMTP_PORT || '587',
+        user: process.env.SMTP_USER || process.env.EMAIL_USER,
+        hasPassword: !!(process.env.SMTP_PASS || process.env.EMAIL_PASS),
+        from: process.env.SMTP_FROM || 'noreply@traintrack.com'
       });
 
-      res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || 'noreply@traintrack.com',
+          to: user.email,
+          subject: 'Password Reset Request for TrainTrack',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2563eb;">Password Reset Request</h2>
+              <p>You requested to reset your password. Please click the link below to set a new password:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                  Reset Password
+                </a>
+              </div>
+              <p style="color: #666; font-size: 14px;">
+                This link will expire in 24 hours. If you did not request this, please ignore this email.
+              </p>
+            </div>
+          `,
+        });
+
+        console.log(`Password reset email sent successfully to: ${user.email}`);
+        res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      } catch (emailError) {
+        console.error("Email sending error:", emailError);
+        // Check if it's an authentication error
+        if (emailError.code === 'EAUTH' || emailError.responseCode === 535) {
+          console.error("SMTP Authentication failed. Please check email credentials.");
+          res.status(500).json({ message: "Email service is not configured properly. Please contact administrator." });
+        } else {
+          res.status(500).json({ message: "Failed to send reset email. Please try again." });
+        }
+      }
     } catch (error) {
       console.error("Forgot password error:", error);
       res.status(500).json({ message: "Failed to process password reset request" });
