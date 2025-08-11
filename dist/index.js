@@ -53,7 +53,9 @@ var init_schema = __esm({
       position: text("position"),
       joinDate: timestamp("join_date").defaultNow(),
       isActive: boolean("is_active").default(true),
-      createdAt: timestamp("created_at").defaultNow()
+      renewalCount: integer("renewal_count").default(0),
+      resetToken: text("reset_token"),
+      resetTokenExpiry: timestamp("reset_token_expiry")
     });
     courses = pgTable("courses", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -108,13 +110,9 @@ var init_schema = __esm({
       deadline: timestamp("deadline"),
       // Course completion deadline
       status: text("status", { enum: ["pending", "accessed", "completed", "expired"] }).default("pending"),
-      remindersSent: integer("reminders_sent").default(0),
-      // Compliance tracking
-      expiresAt: timestamp("expires_at"),
-      // When the certification expires
-      isExpired: boolean("is_expired").default(false),
-      renewalCount: integer("renewal_count").default(0)
-      // Track how many times renewed
+      remindersSent: integer("reminders_sent").default(0).notNull(),
+      renewalCount: integer("renewal_count").default(0).notNull(),
+      lastAccessedAt: timestamp("last_accessed_at")
     });
     certificates = pgTable("certificates", {
       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -255,6 +253,8 @@ async function createTables() {
         position TEXT,
         join_date TIMESTAMP DEFAULT NOW(),
         is_active BOOLEAN DEFAULT true,
+        reset_token TEXT,
+        reset_token_expiry TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -335,7 +335,7 @@ async function ensureSchemaUpdates() {
       return;
     }
     const tablesExist = await db.execute(sql2`
-      SELECT COUNT(*) as count FROM information_schema.tables 
+      SELECT COUNT(*) as count FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'users'
     `);
     if (tablesExist[0]?.count === 0) {
@@ -359,6 +359,20 @@ async function ensureSchemaUpdates() {
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent INTEGER DEFAULT 0`);
     await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token text`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry timestamp`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS renewal_count integer DEFAULT 0`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number text`);
+    await db.execute(sql2`ALTER TABLE users ADD COLUMN IF NOT EXISTS client_name text`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assigned_email text`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS deadline timestamp`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending'`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS assignment_token text`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS reminders_sent integer DEFAULT 0`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS last_accessed_at timestamp`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS expires_at timestamp`);
+    await db.execute(sql2`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_expired boolean DEFAULT false`);
     console.log("Database schema updates completed successfully");
     await db.execute(sql2`ALTER TABLE courses ADD COLUMN IF NOT EXISTS youtube_url TEXT`);
     console.log("Database schema updates completed successfully");
@@ -423,8 +437,12 @@ var Storage = class {
     return user || null;
   }
   async getUserByEmail(email) {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || null;
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0] || null;
+  }
+  async getUserByResetToken(token) {
+    const result = await db.select().from(users).where(eq(users.resetToken, token)).limit(1);
+    return result[0] || null;
   }
   async getUserByEmployeeId(employeeId) {
     const [user] = await db.select().from(users).where(eq(users.employeeId, employeeId));
@@ -925,6 +943,10 @@ var Storage = class {
     const result = await db.delete(certificates).where(eq(certificates.id, id));
     return result.rowCount > 0;
   }
+  async getCertificate(certificateId) {
+    const result = await db.select().from(certificates).where(eq(certificates.id, certificateId)).limit(1);
+    return result[0] || null;
+  }
   // Bulk operations
   async bulkAssignCourse(courseId, userIds) {
     const course = await this.getCourse(courseId);
@@ -1251,6 +1273,35 @@ var Storage = class {
     );
     return result.rowCount;
   }
+  // Password reset token methods
+  async createPasswordResetToken(tokenData) {
+    await db.update(users).set({
+      resetToken: tokenData.token,
+      resetTokenExpiry: tokenData.expiresAt
+    }).where(eq(users.id, tokenData.userId));
+  }
+  async getPasswordResetToken(token) {
+    const [user] = await db.select({
+      id: users.id,
+      resetTokenExpiry: users.resetTokenExpiry
+    }).from(users).where(eq(users.resetToken, token));
+    if (!user || !user.resetTokenExpiry) {
+      return null;
+    }
+    return {
+      userId: user.id,
+      expiresAt: user.resetTokenExpiry
+    };
+  }
+  async deletePasswordResetToken(token) {
+    await db.update(users).set({
+      resetToken: null,
+      resetTokenExpiry: null
+    }).where(eq(users.resetToken, token));
+  }
+  async updateUserPassword(userId, hashedPassword) {
+    await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
+  }
 };
 var storage = new Storage();
 
@@ -1325,6 +1376,12 @@ async function registerRoutes(app2) {
     return false;
   };
   await checkDatabaseHealth();
+  app2.get("/api/test", (req, res) => {
+    res.json({ message: "API is working", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
+  app2.get("/api/auth/test", (req, res) => {
+    res.json({ message: "Auth routes are working", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  });
   try {
     const fixedCount = await storage.fixCompletedCourseProgress();
     if (fixedCount > 0) {
@@ -1443,15 +1500,27 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/auth/employee-login", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, password } = req.body;
       const user = await storage.getUserByEmail(email);
       if (!user || user.role !== "employee" || !user.isActive) {
         return res.status(401).json({ message: "Email not found or not authorized. Please contact HR." });
+      }
+      if (!password) {
+        return res.status(401).json({ message: "Password is required" });
+      }
+      if (user.password) {
+        const isValidPassword = await bcrypt2.compare(password, user.password);
+        if (!isValidPassword) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+      } else {
+        return res.status(401).json({ message: "Password not set for this account. Please use the 'Forgot Password' feature or contact HR." });
       }
       req.session.userId = user.id;
       req.session.userRole = "employee";
       res.json({ success: true, user });
     } catch (error) {
+      console.error("Employee login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -1507,6 +1576,37 @@ async function registerRoutes(app2) {
     try {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
+      if (!userData.password) {
+        const generatedPassword = Math.random().toString(36).slice(-12);
+        userData.password = await bcrypt2.hash(generatedPassword, 10);
+        try {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || "noreply@traintrack.com",
+            to: userData.email,
+            subject: "Your TrainTrack Account Details",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">Welcome to TrainTrack!</h2>
+                <p>Your account has been created. Please use the following credentials to log in:</p>
+                <div style="border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                  <p><strong>Username/Email:</strong> ${userData.email}</p>
+                  <p><strong>Temporary Password:</strong> ${generatedPassword}</p>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  For security reasons, we recommend changing your password after your first login.
+                </p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${req.protocol}://${req.get("host")}/employee-login" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Login Now
+                  </a>
+                </div>
+              </div>
+            `
+          });
+        } catch (emailError) {
+          console.error("Failed to send welcome email:", emailError);
+        }
+      }
       const employee = await storage.createUser(userData);
       res.json(employee);
     } catch (error) {
@@ -1521,6 +1621,9 @@ async function registerRoutes(app2) {
     try {
       const userData = insertUserSchema.parse(req.body);
       userData.role = "employee";
+      if (req.body.password) {
+        userData.password = await bcrypt2.hash(req.body.password, 10);
+      }
       const updatedEmployee = await storage.updateUser(req.params.id, userData);
       if (updatedEmployee) {
         res.json(updatedEmployee);
@@ -1551,6 +1654,132 @@ async function registerRoutes(app2) {
       });
     }
   });
+  app2.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      console.log("Forgot password route accessed");
+      console.log("Request body:", req.body);
+      const { email } = req.body;
+      if (!email || !email.trim()) {
+        console.log("No email provided in request");
+        return res.status(400).json({ message: "Email is required" });
+      }
+      console.log(`Password reset requested for email: ${email}`);
+      let user;
+      try {
+        user = await storage.getUserByEmail(email.trim());
+        console.log("User lookup result:", user ? "User found" : "User not found");
+      } catch (dbError) {
+        console.error("Database error fetching user:", dbError);
+        return res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      }
+      if (!user || user.role !== "employee" || !user.isActive) {
+        console.log(`Password reset: User not found or not eligible for email: ${email}`);
+        return res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      }
+      const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1e3);
+      console.log(`Creating password reset token for user: ${user.id}`);
+      try {
+        await db.update(users).set({
+          resetToken,
+          resetTokenExpiry: expiresAt
+        }).where(eq2(users.id, user.id));
+        console.log("Password reset token stored successfully");
+      } catch (tokenError) {
+        console.error("Error storing password reset token:", tokenError);
+        return res.status(500).json({ message: "Failed to process password reset request" });
+      }
+      const resetLink = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
+      console.log("SMTP Configuration:", {
+        host: process.env.SMTP_HOST || "smtp.office365.com",
+        port: process.env.SMTP_PORT || "587",
+        user: process.env.SMTP_USER || process.env.EMAIL_USER,
+        hasPassword: !!(process.env.SMTP_PASS || process.env.EMAIL_PASS),
+        from: process.env.SMTP_FROM || "noreply@traintrack.com"
+      });
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || "nexohr@fidelisgroup.in",
+          to: user.email,
+          subject: "Password Reset Request for TrainTrack",
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2563eb;">Password Reset Request</h2>
+              <p>You requested to reset your password. Please click the link below to set a new password:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                  Reset Password
+                </a>
+              </div>
+              <p style="color: #666; font-size: 14px;">
+                This link will expire in 24 hours. If you did not request this, please ignore this email.
+                <br><br>
+                <strong>Direct link:</strong> ${resetLink}
+              </p>
+            </div>
+          `
+        });
+        console.log(`Password reset email sent successfully to: ${user.email}`);
+        res.json({ message: "If an account with that email exists, a reset link has been sent." });
+      } catch (emailError) {
+        console.error("Email sending error:", emailError);
+        console.error("Email error details:", {
+          code: emailError.code,
+          command: emailError.command,
+          response: emailError.response,
+          responseCode: emailError.responseCode
+        });
+        if (emailError.code === "EAUTH" || emailError.responseCode === 535) {
+          console.error("SMTP Authentication failed. Please check email credentials.");
+          res.status(500).json({ message: "Email service authentication failed. Please contact administrator." });
+        } else {
+          res.status(500).json({ message: "Failed to send reset email. Please try again." });
+        }
+      }
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ message: "Failed to process password reset request" });
+    }
+  });
+  app2.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password, newPassword } = req.body;
+      const passwordToUse = password || newPassword;
+      if (!token || !passwordToUse) {
+        return res.status(400).json({ message: "Token and password are required" });
+      }
+      let user;
+      try {
+        const result = await db.select().from(users).where(eq2(users.resetToken, token)).limit(1);
+        user = result[0];
+      } catch (dbError) {
+        console.error("Database error fetching reset token:", dbError);
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+      if (!user || !user.resetTokenExpiry) {
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+      if (/* @__PURE__ */ new Date() > new Date(user.resetTokenExpiry)) {
+        return res.status(400).json({ message: "Invalid or expired password reset token" });
+      }
+      const hashedPassword = await bcrypt2.hash(passwordToUse, 10);
+      try {
+        await db.update(users).set({
+          password: hashedPassword,
+          resetToken: null,
+          resetTokenExpiry: null
+        }).where(eq2(users.id, user.id));
+        console.log(`Password reset successfully for user: ${user.email}`);
+        res.json({ message: "Password reset successfully. You can now log in with your new password." });
+      } catch (updateError) {
+        console.error("Error updating password:", updateError);
+        res.status(500).json({ message: "Failed to reset password" });
+      }
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
   app2.get("/api/courses", async (req, res) => {
     try {
       const courses2 = await storage.getAllCourses();
@@ -1572,7 +1801,7 @@ async function registerRoutes(app2) {
     try {
       console.log("Course creation request body:", req.body);
       console.log("Course creation file:", req.file);
-      const { title, description, questions, courseType, youtubeUrl } = req.body;
+      const { title, description, questions, courseType, youtubeUrl, duration } = req.body;
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
       }
@@ -1597,7 +1826,9 @@ async function registerRoutes(app2) {
         // Use file upload if available
         courseType: courseType || "one-time",
         createdBy: req.session.userId,
-        questions: parsedQuestions
+        questions: parsedQuestions,
+        duration: duration ? parseInt(duration, 10) : 0
+        // Include duration, default to 0 if not provided or invalid
       });
       console.log("Course created with ID:", course.id, "Video path:", course.videoPath);
       res.json({ success: true, course });
@@ -1611,7 +1842,7 @@ async function registerRoutes(app2) {
   });
   app2.put("/api/courses/:id", requireAdmin, upload.single("video"), async (req, res) => {
     try {
-      const { title, description, questions, courseType, youtubeUrl } = req.body;
+      const { title, description, questions, courseType, youtubeUrl, duration } = req.body;
       const updateData = {
         title,
         description,
@@ -1633,6 +1864,9 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: "Invalid questions format" });
         }
         updateData.questions = parsedQuestions;
+      }
+      if (duration !== void 0) {
+        updateData.duration = parseInt(duration, 10);
       }
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
       if (!updatedCourse) {
@@ -2530,22 +2764,29 @@ async function registerRoutes(app2) {
       const startTime = Date.now();
       await storage.getDashboardStats();
       const dbResponseTime = Date.now() - startTime;
+      const memoryStats = process.memoryUsage();
+      const memoryUsagePercent = Math.round(memoryStats.heapUsed / memoryStats.heapTotal * 100);
+      const uptimeSeconds = process.uptime();
+      const hours = Math.floor(uptimeSeconds / 3600);
+      const minutes = Math.floor(uptimeSeconds % 3600 / 60);
+      const formattedUptime = `${hours}h ${minutes}m`;
+      const activeUsers = Object.keys(req.sessionStore?.sessions || {}).length || 1;
       const metrics = {
         serverResponseTime: dbResponseTime,
-        activeUsers: 1,
-        // In a real app, you'd track active sessions
-        memoryUsage: process.memoryUsage ? Math.round(process.memoryUsage().heapUsed / process.memoryUsage().heapTotal * 100) : 45,
-        cpuUsage: Math.floor(Math.random() * 20) + 15,
-        // Simulated CPU usage
-        uptime: process.uptime ? `${Math.floor(process.uptime() / 3600)}h ${Math.floor(process.uptime() % 3600 / 60)}m` : "Unknown",
-        requestsPerMinute: 15,
-        // In a real app, you'd track this
+        activeUsers,
+        memoryUsage: memoryUsagePercent,
+        cpuUsage: Math.floor(Math.random() * 15) + 10,
+        // Simulated, as real CPU monitoring requires additional packages
+        uptime: formattedUptime,
+        requestsPerMinute: Math.floor(Math.random() * 10) + 5,
+        // Simulated for now
         dbConnectionStatus: "Connected",
         totalRequests: 0
-        // In a real app, you'd track this
+        // Would require middleware to track
       };
       res.json(metrics);
     } catch (error) {
+      console.error("Performance metrics error:", error);
       res.status(500).json({
         message: "Failed to fetch performance metrics",
         error: process.env.NODE_ENV === "development" ? error.message : void 0
