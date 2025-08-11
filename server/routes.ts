@@ -1252,11 +1252,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get course assignments (for HR tracking)
   app.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
     try {
+      console.log(`Fetching assignments for course: ${req.params.courseId}`);
       const assignments = await storage.getCourseAssignments(req.params.courseId);
+      console.log(`Found ${assignments.length} assignments for course ${req.params.courseId}`);
       res.json(assignments);
     } catch (error) {
       console.error("Error fetching course assignments:", error);
-      res.status(500).json({ message: "Failed to fetch assignments" });
+      res.status(500).json({ 
+        message: "Failed to fetch assignments",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
@@ -1379,11 +1384,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get course enrollments (who is assigned to a specific course)
   app.get("/api/courses/:courseId/enrollments", requireAdmin, async (req, res) => {
     try {
+      console.log(`Fetching enrollments for course: ${req.params.courseId}`);
       const enrollments = await storage.getCourseEnrollments(req.params.courseId);
-      res.json(enrollments);
+      console.log(`Found ${enrollments.length} enrollments for course ${req.params.courseId}`);
+      
+      // Ensure consistent data structure
+      const formattedEnrollments = enrollments.map(enrollment => ({
+        ...enrollment,
+        assignedEmail: enrollment.assignedEmail || enrollment.user?.email,
+        userName: enrollment.user?.name || "Not registered",
+        userEmail: enrollment.user?.email || enrollment.assignedEmail,
+        clientName: enrollment.user?.clientName || "N/A",
+        department: enrollment.user?.department || "Not registered",
+      }));
+      
+      res.json(formattedEnrollments);
     } catch (error) {
       console.error("Error fetching course enrollments:", error);
-      res.status(500).json({ message: "Failed to fetch course enrollments" });
+      res.status(500).json({ 
+        message: "Failed to fetch course enrollments",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 

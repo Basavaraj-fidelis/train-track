@@ -180,15 +180,29 @@ export default function EnhancedHRDashboard() {
   });
 
   // Add enrollment tracking queries
-  const { data: courseEnrollments } = useQuery({
+  const { data: courseEnrollments, refetch: refetchCourseEnrollments } = useQuery({
     queryKey: ["/api/courses", selectedCourseEnrollments?.id, "enrollments"],
     enabled:
       !!selectedCourseEnrollments?.id && authData?.user?.role === "admin",
+    queryFn: async () => {
+      console.log(`Fetching enrollments for course: ${selectedCourseEnrollments?.id}`);
+      const response = await apiRequest("GET", `/api/courses/${selectedCourseEnrollments.id}/enrollments`);
+      const data = await response.json();
+      console.log(`Received ${data.length} enrollments:`, data);
+      return data;
+    },
   });
 
-  const { data: userEnrollments } = useQuery({
+  const { data: userEnrollments, refetch: refetchUserEnrollments } = useQuery({
     queryKey: ["/api/users", selectedUserEnrollments?.id, "enrollments"],
     enabled: !!selectedUserEnrollments?.id && authData?.user?.role === "admin",
+    queryFn: async () => {
+      console.log(`Fetching enrollments for user: ${selectedUserEnrollments?.id}`);
+      const response = await apiRequest("GET", `/api/users/${selectedUserEnrollments.id}/enrollments`);
+      const data = await response.json();
+      console.log(`Received ${data.length} user enrollments:`, data);
+      return data;
+    },
   });
 
   // Mutations
@@ -1232,8 +1246,15 @@ export default function EnhancedHRDashboard() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
+                                    console.log("Viewing users for course:", course.id, course.title);
                                     setSelectedCourse(course);
                                     setSelectedCourseEnrollments(course);
+                                    // Force refresh of enrollments data
+                                    setTimeout(() => {
+                                      queryClient.invalidateQueries({ 
+                                        queryKey: ["/api/courses", course.id, "enrollments"] 
+                                      });
+                                    }, 100);
                                   }}
                                   className="flex items-center gap-1"
                                 >
@@ -1264,8 +1285,15 @@ export default function EnhancedHRDashboard() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
+                                    console.log("Opening tracker for course:", course.id, course.title);
                                     setSelectedCourse(course);
                                     setAssignmentsTrackerOpen(true);
+                                    // Force refresh of assignments data
+                                    setTimeout(() => {
+                                      queryClient.invalidateQueries({ 
+                                        queryKey: ["/api/course-assignments", course.id] 
+                                      });
+                                    }, 100);
                                   }}
                                   className="flex items-center gap-1"
                                 >

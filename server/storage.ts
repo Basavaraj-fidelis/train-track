@@ -841,6 +841,7 @@ export class Storage {
         lastAccessedAt: enrollments.lastAccessedAt,
         assignmentToken: enrollments.assignmentToken,
         userId: enrollments.userId,
+        quizScore: enrollments.quizScore,
         user: {
           id: users.id,
           name: users.name,
@@ -852,8 +853,10 @@ export class Storage {
       })
       .from(enrollments)
       .leftJoin(users, eq(enrollments.userId, users.id))
-      .where(eq(enrollments.courseId, courseId));
+      .where(eq(enrollments.courseId, courseId))
+      .orderBy(desc(enrollments.enrolledAt));
 
+    console.log(`Retrieved ${enrollments.length} assignments for course ${courseId}`);
     return enrollments;
   }
 

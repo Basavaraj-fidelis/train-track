@@ -24,13 +24,21 @@ export default function CourseAssignmentsTracker({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: assignments, isLoading } = useQuery({
+  const { data: assignments, isLoading, refetch } = useQuery({
     queryKey: ["/api/course-assignments", courseId],
     enabled: open && !!courseId,
     queryFn: async () => {
+      console.log(`Fetching assignments for course: ${courseId}`);
       const response = await apiRequest("GET", `/api/course-assignments/${courseId}`);
-      return response.json();
+      if (!response.ok) {
+        throw new Error('Failed to fetch assignments');
+      }
+      const data = await response.json();
+      console.log(`Received ${data.length} assignments:`, data);
+      return data;
     },
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const sendRemindersMutation = useMutation({
@@ -94,10 +102,17 @@ export default function CourseAssignmentsTracker({
   };
 
   const pendingCount = assignments?.filter(assignment => 
-    ["pending", "accessed"].includes(assignment.status) && !assignment.completedAt
+    !assignment.certificateIssued && 
+    assignment.status !== "expired" &&
+    (!assignment.completedAt || assignment.progress < 100)
   )?.length || 0;
-  const completedCount = assignments?.filter((a: any) => a.completedAt)?.length || 0;
-  const expiredCount = assignments?.filter((a: any) => a.status === "expired")?.length || 0;
+  const completedCount = assignments?.filter((a: any) => 
+    a.certificateIssued || (a.completedAt && a.progress >= 100)
+  )?.length || 0;
+  const expiredCount = assignments?.filter((a: any) => 
+    a.status === "expired" || 
+    (a.deadline && new Date(a.deadline) < new Date() && !a.certificateIssued)
+  )?.length || 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -143,7 +158,11 @@ export default function CourseAssignmentsTracker({
               </Button>
               <Button
                 variant="outline"
-                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/course-assignments", courseId] })}
+                onClick={() => {
+                  console.log("Refreshing course assignments...");
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ["/api/course-assignments", courseId] });
+                }}
                 size="sm"
               >
                 <RefreshCw size={16} className="mr-2" />
