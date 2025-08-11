@@ -26,6 +26,7 @@ export const courses = pgTable("courses", {
   title: text("title").notNull(),
   description: text("description"),
   videoPath: text("video_path"),
+  youtubeUrl: text("youtube_url"),
   duration: integer("duration"), // in minutes
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -38,6 +39,8 @@ export const courses = pgTable("courses", {
   // New fields for deadline management
   defaultDeadlineDays: integer("default_deadline_days").default(30), // Default days to complete
   reminderDays: integer("reminder_days").default(7), // Days before deadline to send reminder
+  // Embedded questions for courses
+  questions: jsonb("questions"), // Array of question objects
 });
 
 export const quizzes = pgTable("quizzes", {

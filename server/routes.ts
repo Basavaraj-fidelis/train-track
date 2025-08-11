@@ -73,6 +73,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check database health on startup
   await checkDatabaseHealth();
 
+  // Database reset endpoint (for development/setup only)
+  app.post("/api/admin/reset-database", async (req, res) => {
+    try {
+      const { resetKey } = req.body;
+      
+      // Simple protection - require a reset key
+      if (resetKey !== "RESET_TRAINTRACK_DB_2025") {
+        return res.status(403).json({ message: "Invalid reset key" });
+      }
+
+      // Import reset function
+      const { resetDatabase } = await import("./db");
+      await resetDatabase();
+
+      // Create default admin user
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      const adminUser = await storage.createUser({
+        employeeId: "ADMIN001",
+        email: "admin@traintrack.com",
+        name: "Administrator",
+        role: "admin",
+        designation: "System Administrator",
+        department: "IT",
+        clientName: "TrainTrack",
+        phoneNumber: "+1-555-0100",
+        password: hashedPassword,
+        isActive: true
+      });
+
+      console.log('Database reset completed and admin user created');
+      
+      res.json({ 
+        success: true, 
+        message: "Database reset successfully and admin user created",
+        adminUser: {
+          id: adminUser.id,
+          email: adminUser.email,
+          name: adminUser.name,
+          role: adminUser.role
+        }
+      });
+    } catch (error) {
+      console.error('Database reset error:', error);
+      res.status(500).json({ 
+        message: "Failed to reset database",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
   // Cleanup expired assignments and reset reminder data periodically
   const cleanupExpiredAssignments = async () => {
     try {
@@ -105,6 +155,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let adminUser = await storage.getUserByEmail("admin@traintrack.com");
 
         if (!adminUser) {
+          console.log('Creating default admin user...');
+          const hashedPassword = await bcrypt.hash("admin123", 10);
           adminUser = await storage.createUser({
             employeeId: "ADMIN001",
             email: "admin@traintrack.com",
@@ -114,19 +166,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             department: "IT",
             clientName: "TrainTrack",
             phoneNumber: "+1-555-0100",
-            password: await bcrypt.hash("admin123", 10),
+            password: hashedPassword,
+            isActive: true
           });
+          console.log('Admin user created successfully');
+        }
+
+        // Verify password if user exists
+        if (adminUser.password) {
+          const isValidPassword = await bcrypt.compare("admin123", adminUser.password);
+          if (!isValidPassword) {
+            return res.status(401).json({ message: "Invalid credentials" });
+          }
         }
 
         req.session.userId = adminUser.id;
         req.session.userRole = "admin";
-        res.json({ success: true, user: adminUser });
+        
+        console.log('Admin login successful:', { userId: adminUser.id, email: adminUser.email });
+        
+        res.json({ 
+          success: true, 
+          user: {
+            id: adminUser.id,
+            email: adminUser.email,
+            name: adminUser.name,
+            role: adminUser.role,
+            employeeId: adminUser.employeeId
+          }
+        });
       } else {
         res.status(401).json({ message: "Invalid credentials" });
       }
     } catch (error) {
       console.error("Admin login error:", error);
-      res.status(500).json({ message: "Login failed" });
+      res.status(500).json({ 
+        message: "Login failed",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
