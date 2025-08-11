@@ -301,10 +301,16 @@ var Storage = class {
   }
   // Course management
   async createCourse(courseData) {
+    let finalVideoPath = "";
+    if (courseData.youtubeUrl && courseData.youtubeUrl.trim()) {
+      finalVideoPath = courseData.youtubeUrl.trim();
+    } else if (courseData.videoPath && courseData.videoPath.trim()) {
+      finalVideoPath = courseData.videoPath.trim();
+    }
     const courseToInsert = {
       title: courseData.title,
       description: courseData.description,
-      videoPath: courseData.youtubeUrl || courseData.videoPath || "",
+      videoPath: finalVideoPath,
       // Store YouTube URL or video file path
       duration: courseData.duration || 0,
       createdBy: courseData.createdBy || "admin",
@@ -312,6 +318,7 @@ var Storage = class {
       defaultDeadlineDays: courseData.defaultDeadlineDays || 30,
       reminderDays: courseData.reminderDays || 7
     };
+    console.log("Creating course with video path:", finalVideoPath);
     const [newCourse] = await db.insert(courses).values(courseToInsert).returning();
     if (courseData.questions && courseData.questions.length > 0) {
       await this.createQuiz({
@@ -321,6 +328,11 @@ var Storage = class {
         passingScore: 70
       });
     }
+    console.log("Course created successfully:", {
+      id: newCourse.id,
+      title: newCourse.title,
+      videoPath: newCourse.videoPath
+    });
     return newCourse;
   }
   async getCourse(id) {
@@ -340,11 +352,16 @@ var Storage = class {
   async updateCourse(id, courseData) {
     const updateData = { ...courseData };
     if (courseData.youtubeUrl !== void 0) {
-      updateData.videoPath = courseData.youtubeUrl || "";
+      updateData.videoPath = courseData.youtubeUrl.trim() || "";
       delete updateData.youtubeUrl;
     }
     delete updateData.questions;
+    console.log(`Updating course ${id} with video path:`, updateData.videoPath);
     const [updatedCourse] = await db.update(courses).set(updateData).where(eq(courses.id, id)).returning();
+    if (!updatedCourse) {
+      console.error(`Failed to update course with id: ${id}`);
+      return null;
+    }
     if (courseData.questions) {
       const existingQuiz = await this.getQuizByCourseId(id);
       if (existingQuiz) {
@@ -363,7 +380,12 @@ var Storage = class {
         });
       }
     }
-    return updatedCourse || null;
+    console.log("Course updated successfully:", {
+      id: updatedCourse.id,
+      title: updatedCourse.title,
+      videoPath: updatedCourse.videoPath
+    });
+    return updatedCourse;
   }
   async deleteCourse(id) {
     try {
@@ -515,19 +537,49 @@ var Storage = class {
       status: enrollments.status,
       remindersSent: enrollments.remindersSent,
       lastAccessedAt: sql3`${enrollments.completedAt}`.as("lastAccessedAt"),
-      course: {
-        id: courses.id,
-        title: courses.title,
-        description: courses.description,
-        duration: courses.duration,
-        courseType: courses.courseType,
-        renewalPeriodMonths: courses.renewalPeriodMonths,
-        isComplianceCourse: courses.isComplianceCourse
-      }
+      // Include ALL course fields including videoPath
+      courseId2: courses.id,
+      courseTitle: courses.title,
+      courseDescription: courses.description,
+      courseVideoPath: courses.videoPath,
+      courseDuration: courses.duration,
+      courseType: courses.courseType,
+      courseCreatedAt: courses.createdAt,
+      courseIsActive: courses.isActive,
+      courseRenewalPeriodMonths: courses.renewalPeriodMonths,
+      courseIsComplianceCourse: courses.isComplianceCourse
     }).from(enrollments).leftJoin(courses, eq(enrollments.courseId, courses.id)).where(eq(enrollments.userId, userId)).orderBy(enrollments.enrolledAt);
     return enrollmentsData.map((enrollment) => ({
-      ...enrollment,
-      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+      id: enrollment.id,
+      userId: enrollment.userId,
+      courseId: enrollment.courseId,
+      enrolledAt: enrollment.enrolledAt,
+      completedAt: enrollment.completedAt,
+      progress: enrollment.progress,
+      quizScore: enrollment.quizScore,
+      certificateIssued: enrollment.certificateIssued,
+      expiresAt: enrollment.expiresAt,
+      isExpired: enrollment.isExpired,
+      renewalCount: enrollment.renewalCount,
+      assignedEmail: enrollment.assignedEmail,
+      assignmentToken: enrollment.assignmentToken,
+      deadline: enrollment.deadline,
+      status: enrollment.status,
+      remindersSent: enrollment.remindersSent,
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
+      course: enrollment.courseId2 ? {
+        id: enrollment.courseId2,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription,
+        videoPath: enrollment.courseVideoPath,
+        // Include videoPath
+        duration: enrollment.courseDuration,
+        courseType: enrollment.courseType,
+        createdAt: enrollment.courseCreatedAt,
+        isActive: enrollment.courseIsActive,
+        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+        isComplianceCourse: enrollment.courseIsComplianceCourse
+      } : null
     }));
   }
   async getUserActiveEnrollments(userId) {
@@ -549,15 +601,14 @@ var Storage = class {
       status: enrollments.status,
       remindersSent: enrollments.remindersSent,
       lastAccessedAt: sql3`${enrollments.completedAt}`.as("lastAccessedAt"),
-      course: {
-        id: courses.id,
-        title: courses.title,
-        description: courses.description,
-        duration: courses.duration,
-        courseType: courses.courseType,
-        renewalPeriodMonths: courses.renewalPeriodMonths,
-        isComplianceCourse: courses.isComplianceCourse
-      }
+      // Separate course fields instead of nested object
+      courseId2: courses.id,
+      courseTitle: courses.title,
+      courseDescription: courses.description,
+      courseDuration: courses.duration,
+      courseType: courses.courseType,
+      courseRenewalPeriodMonths: courses.renewalPeriodMonths,
+      courseIsComplianceCourse: courses.isComplianceCourse
     }).from(enrollments).leftJoin(courses, eq(enrollments.courseId, courses.id)).where(and(
       eq(enrollments.userId, userId),
       eq(courses.isActive, true)
@@ -565,11 +616,20 @@ var Storage = class {
     )).orderBy(enrollments.enrolledAt);
     return enrollmentsData.map((enrollment) => ({
       ...enrollment,
-      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt
+      lastAccessedAt: enrollment.completedAt || enrollment.enrolledAt,
+      course: enrollment.courseId2 ? {
+        id: enrollment.courseId2,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription,
+        duration: enrollment.courseDuration,
+        courseType: enrollment.courseType,
+        renewalPeriodMonths: enrollment.courseRenewalPeriodMonths,
+        isComplianceCourse: enrollment.isComplianceCourse
+      } : null
     }));
   }
   async getAllEnrollments() {
-    return db.select({
+    const enrollmentsData = await db.select({
       id: enrollments.id,
       enrolledAt: enrollments.enrolledAt,
       completedAt: enrollments.completedAt,
@@ -580,38 +640,80 @@ var Storage = class {
       status: enrollments.status,
       assignedEmail: enrollments.assignedEmail,
       remindersSent: enrollments.remindersSent,
-      user: {
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        employeeId: users.employeeId
-      },
-      course: {
-        id: courses.id,
-        title: courses.title,
-        description: courses.description
-      }
+      // Separate user fields
+      userId: users.id,
+      userName: users.name,
+      userEmail: users.email,
+      userEmployeeId: users.employeeId,
+      // Separate course fields
+      courseId: courses.id,
+      courseTitle: courses.title,
+      courseDescription: courses.description
     }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).innerJoin(courses, eq(enrollments.courseId, courses.id)).orderBy(desc(enrollments.enrolledAt));
+    return enrollmentsData.map((enrollment) => ({
+      id: enrollment.id,
+      enrolledAt: enrollment.enrolledAt,
+      completedAt: enrollment.completedAt,
+      progress: enrollment.progress,
+      quizScore: enrollment.quizScore,
+      certificateIssued: enrollment.certificateIssued,
+      deadline: enrollment.deadline,
+      status: enrollment.status,
+      assignedEmail: enrollment.assignedEmail,
+      remindersSent: enrollment.remindersSent,
+      user: enrollment.userId ? {
+        id: enrollment.userId,
+        name: enrollment.userName,
+        email: enrollment.userEmail,
+        employeeId: enrollment.userEmployeeId
+      } : null,
+      course: {
+        id: enrollment.courseId,
+        title: enrollment.courseTitle,
+        description: enrollment.courseDescription
+      }
+    }));
   }
   async getCourseEnrollments(courseId) {
-    return db.select({
-      id: enrollments.id,
-      enrolledAt: enrollments.enrolledAt,
-      completedAt: enrollments.completedAt,
-      progress: enrollments.progress,
-      quizScore: enrollments.quizScore,
-      certificateIssued: enrollments.certificateIssued,
-      deadline: enrollments.deadline,
-      status: enrollments.status,
-      assignedEmail: enrollments.assignedEmail,
-      user: {
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        employeeId: users.employeeId,
-        department: users.department
-      }
-    }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId)).orderBy(desc(enrollments.enrolledAt));
+    try {
+      const enrollmentsData = await db.select({
+        id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
+        enrolledAt: enrollments.enrolledAt,
+        progress: sql3`COALESCE(${enrollments.progress}, 0)`.as("progress"),
+        completedAt: enrollments.completedAt,
+        certificateIssued: sql3`COALESCE(${enrollments.certificateIssued}, false)`.as("certificateIssued"),
+        assignedEmail: enrollments.assignedEmail,
+        // User fields with safe defaults
+        userName: users.name,
+        userEmail: users.email,
+        userDepartment: users.department,
+        userClientName: users.clientName,
+        userIdFromTable: users.id
+      }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId));
+      const transformedData = enrollmentsData.map((enrollment) => ({
+        id: enrollment.id || `temp-${Date.now()}`,
+        userId: enrollment.userId || null,
+        courseId: enrollment.courseId || courseId,
+        enrolledAt: enrollment.enrolledAt || null,
+        progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+        completedAt: enrollment.completedAt || null,
+        certificateIssued: Boolean(enrollment.certificateIssued),
+        assignedEmail: enrollment.assignedEmail || "",
+        user: enrollment.userIdFromTable ? {
+          id: enrollment.userIdFromTable,
+          name: enrollment.userName || "Not registered",
+          email: enrollment.userEmail || enrollment.assignedEmail || "",
+          department: enrollment.userDepartment || "N/A",
+          clientName: enrollment.userClientName || "N/A"
+        } : null
+      }));
+      return transformedData;
+    } catch (error) {
+      console.error(`Error retrieving course enrollments for ${courseId}:`, error);
+      return [];
+    }
   }
   // Certificate management
   async createCertificate(certificateData) {
@@ -828,24 +930,62 @@ var Storage = class {
   }
   // Assignment tracking
   async getCourseAssignments(courseId) {
-    return db.select({
-      id: enrollments.id,
-      assignedEmail: enrollments.assignedEmail,
-      assignmentToken: enrollments.assignmentToken,
-      deadline: enrollments.deadline,
-      status: enrollments.status,
-      progress: enrollments.progress,
-      certificateIssued: enrollments.certificateIssued,
-      remindersSent: enrollments.remindersSent,
-      enrolledAt: enrollments.enrolledAt,
-      completedAt: enrollments.completedAt,
-      user: {
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        employeeId: users.employeeId
-      }
-    }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId)).orderBy(desc(enrollments.enrolledAt));
+    try {
+      console.log(`Fetching assignments for course: ${courseId}`);
+      const enrollmentsData = await db.select({
+        // Enrollment fields - use sql`` to ensure fields are not null
+        id: enrollments.id,
+        userId: enrollments.userId,
+        courseId: enrollments.courseId,
+        enrolledAt: enrollments.enrolledAt,
+        progress: sql3`COALESCE(${enrollments.progress}, 0)`.as("progress"),
+        completedAt: enrollments.completedAt,
+        certificateIssued: sql3`COALESCE(${enrollments.certificateIssued}, false)`.as("certificateIssued"),
+        assignedEmail: enrollments.assignedEmail,
+        quizScore: enrollments.quizScore,
+        remindersSent: sql3`COALESCE(${enrollments.remindersSent}, 0)`.as("remindersSent"),
+        deadline: enrollments.deadline,
+        status: sql3`COALESCE(${enrollments.status}, 'pending')`.as("status"),
+        lastAccessedAt: enrollments.lastAccessedAt,
+        assignmentToken: enrollments.assignmentToken,
+        // User fields with null checks
+        userName: users.name,
+        userEmail: users.email,
+        userDepartment: users.department,
+        userClientName: users.clientName,
+        userIdFromTable: users.id
+      }).from(enrollments).leftJoin(users, eq(enrollments.userId, users.id)).where(eq(enrollments.courseId, courseId));
+      const transformedData = enrollmentsData.map((enrollment) => {
+        return {
+          id: enrollment.id || `temp-${Date.now()}`,
+          userId: enrollment.userId || null,
+          courseId: enrollment.courseId || courseId,
+          enrolledAt: enrollment.enrolledAt || null,
+          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+          completedAt: enrollment.completedAt || null,
+          certificateIssued: Boolean(enrollment.certificateIssued),
+          assignedEmail: enrollment.assignedEmail || "",
+          quizScore: enrollment.quizScore ? Number(enrollment.quizScore) : null,
+          remindersSent: Math.max(0, Number(enrollment.remindersSent) || 0),
+          deadline: enrollment.deadline || null,
+          status: enrollment.status || "pending",
+          lastAccessedAt: enrollment.lastAccessedAt || null,
+          assignmentToken: enrollment.assignmentToken || null,
+          user: enrollment.userIdFromTable ? {
+            id: enrollment.userIdFromTable,
+            name: enrollment.userName || "Not registered",
+            email: enrollment.userEmail || enrollment.assignedEmail || "",
+            department: enrollment.userDepartment || "N/A",
+            clientName: enrollment.userClientName || "N/A"
+          } : null
+        };
+      });
+      console.log(`Found ${transformedData.length} assignments for course ${courseId}`);
+      return transformedData;
+    } catch (error) {
+      console.error(`Error retrieving course assignments for ${courseId}:`, error);
+      return [];
+    }
   }
   async incrementReminderCount(enrollmentId) {
     await db.update(enrollments).set({ remindersSent: sql3`${enrollments.remindersSent} + 1` }).where(eq(enrollments.id, enrollmentId));
@@ -1161,12 +1301,11 @@ async function registerRoutes(app2) {
     try {
       console.log("Course creation request body:", req.body);
       console.log("Course creation file:", req.file);
-      console.log("Session during course creation:", req.session);
       const { title, description, questions, courseType, youtubeUrl } = req.body;
       if (!title || !description) {
         return res.status(400).json({ message: "Title and description are required" });
       }
-      if (!youtubeUrl && !req.file) {
+      if (!youtubeUrl?.trim() && !req.file) {
         return res.status(400).json({ message: "Video file or YouTube URL is required" });
       }
       let parsedQuestions = [];
@@ -1178,27 +1317,18 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: "Invalid questions format" });
         }
       }
-      let finalVideoPath = "";
-      if (req.file) {
-        finalVideoPath = req.file.filename;
-      } else if (youtubeUrl) {
-        finalVideoPath = youtubeUrl.trim();
-      }
       const course = await storage.createCourse({
         title: title.trim(),
         description: description.trim(),
-        videoPath: finalVideoPath,
+        youtubeUrl: youtubeUrl?.trim() || "",
+        // Use youtubeUrl parameter
+        videoPath: req.file ? req.file.filename : "",
+        // Use file upload if available
         courseType: courseType || "one-time",
         createdBy: req.session.userId,
         questions: parsedQuestions
       });
-      if (parsedQuestions.length > 0) {
-        await storage.addQuizToCourse(course.id, {
-          title: `${title} Quiz`,
-          questions: parsedQuestions,
-          passingScore: 70
-        });
-      }
+      console.log("Course created with ID:", course.id, "Video path:", course.videoPath);
       res.json({ success: true, course });
     } catch (error) {
       console.error("Course creation error:", error);
@@ -1218,8 +1348,10 @@ async function registerRoutes(app2) {
       };
       if (req.file) {
         updateData.videoPath = req.file.filename;
+        console.log("Updating course with uploaded file:", req.file.filename);
       } else if (youtubeUrl !== void 0) {
-        updateData.videoPath = youtubeUrl.trim() || "";
+        updateData.youtubeUrl = youtubeUrl?.trim() || "";
+        console.log("Updating course with YouTube URL:", youtubeUrl);
       }
       if (questions) {
         let parsedQuestions = [];
@@ -1230,17 +1362,11 @@ async function registerRoutes(app2) {
           return res.status(400).json({ message: "Invalid questions format" });
         }
         updateData.questions = parsedQuestions;
-        if (parsedQuestions.length > 0) {
-          await storage.addQuizToCourse(req.params.id, {
-            title: `${title} Quiz`,
-            questions: parsedQuestions,
-            passingScore: 70
-          });
-        } else {
-          await storage.deleteQuizByCourseId(req.params.id);
-        }
       }
       const updatedCourse = await storage.updateCourse(req.params.id, updateData);
+      if (!updatedCourse) {
+        return res.status(404).json({ message: "Course not found" });
+      }
       res.json(updatedCourse);
     } catch (error) {
       console.error("Course update error:", error);
@@ -1966,11 +2092,26 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/course-assignments/:courseId", requireAdmin, async (req, res) => {
     try {
-      const assignments = await storage.getCourseAssignments(req.params.courseId);
-      res.json(assignments);
+      const courseId = req.params.courseId;
+      if (!courseId || courseId.trim() === "") {
+        return res.status(400).json({ message: "Course ID is required" });
+      }
+      console.log(`Fetching assignments for course: ${courseId}`);
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        console.log(`Course not found: ${courseId}`);
+        return res.status(404).json({ message: "Course not found" });
+      }
+      const assignments = await storage.getCourseAssignments(courseId);
+      console.log(`Found ${assignments.length} assignments for course ${courseId}`);
+      const validAssignments = Array.isArray(assignments) ? assignments : [];
+      res.json(validAssignments);
     } catch (error) {
       console.error("Error fetching course assignments:", error);
-      res.status(500).json({ message: "Failed to fetch assignments" });
+      res.status(500).json({
+        message: "Failed to fetch assignments",
+        error: process.env.NODE_ENV === "development" ? error?.message : void 0
+      });
     }
   });
   app2.get("/api/courses/:courseId/has-assignments", requireAdmin, async (req, res) => {
@@ -2069,11 +2210,45 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/courses/:courseId/enrollments", requireAdmin, async (req, res) => {
     try {
-      const enrollments2 = await storage.getCourseEnrollments(req.params.courseId);
-      res.json(enrollments2);
+      const courseId = req.params.courseId;
+      if (!courseId || courseId.trim() === "") {
+        return res.status(400).json({ message: "Course ID is required" });
+      }
+      console.log(`Fetching enrollments for course: ${courseId}`);
+      const course = await storage.getCourse(courseId);
+      if (!course) {
+        console.log(`Course not found: ${courseId}`);
+        return res.status(404).json({ message: "Course not found" });
+      }
+      const enrollments2 = await storage.getCourseEnrollments(courseId);
+      console.log(`Found ${enrollments2.length} enrollments for course ${courseId}`);
+      const formattedEnrollments = (Array.isArray(enrollments2) ? enrollments2 : []).map((enrollment) => {
+        if (!enrollment || typeof enrollment !== "object") {
+          return null;
+        }
+        return {
+          id: enrollment.id || `temp-${Date.now()}`,
+          userId: enrollment.userId || null,
+          courseId: enrollment.courseId || courseId,
+          enrolledAt: enrollment.enrolledAt || null,
+          progress: Math.max(0, Math.min(100, Number(enrollment.progress) || 0)),
+          completedAt: enrollment.completedAt || null,
+          certificateIssued: Boolean(enrollment.certificateIssued),
+          assignedEmail: enrollment.assignedEmail || enrollment.user?.email || "",
+          userName: enrollment.user?.name || "Not registered",
+          userEmail: enrollment.user?.email || enrollment.assignedEmail || "",
+          clientName: enrollment.user?.clientName || "N/A",
+          department: enrollment.user?.department || "Not registered",
+          user: enrollment.user || null
+        };
+      }).filter(Boolean);
+      res.json(formattedEnrollments);
     } catch (error) {
       console.error("Error fetching course enrollments:", error);
-      res.status(500).json({ message: "Failed to fetch course enrollments" });
+      res.status(500).json({
+        message: "Failed to fetch course enrollments",
+        error: process.env.NODE_ENV === "development" ? error?.message : void 0
+      });
     }
   });
   app2.get("/api/users/:userId/enrollments", requireAdmin, async (req, res) => {
