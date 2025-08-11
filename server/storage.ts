@@ -843,19 +843,39 @@ export class Storage {
     const [
       totalEmployeesResult,
       activeCoursesResult,
-      pendingAssignmentsResult,
       certificatesIssuedResult,
     ] = await Promise.all([
       db.select({ count: count() }).from(users).where(eq(users.role, "employee")),
       db.select({ count: count() }).from(courses).where(eq(courses.isActive, true)),
-      db.select({ count: count() }).from(enrollments).where(eq(enrollments.status, "pending")),
       db.select({ count: count() }).from(certificates),
     ]);
+
+    // Get all enrollments to calculate pending assignments properly
+    const allEnrollments = await db
+      .select({
+        id: enrollments.id,
+        status: enrollments.status,
+        certificateIssued: enrollments.certificateIssued,
+        progress: enrollments.progress,
+        completedAt: enrollments.completedAt,
+        deadline: enrollments.deadline,
+      })
+      .from(enrollments)
+      .innerJoin(courses, eq(enrollments.courseId, courses.id))
+      .where(eq(courses.isActive, true)); // Only count enrollments for active courses
+
+    // Calculate pending assignments using the same logic as in the frontend
+    const pendingAssignments = allEnrollments.filter(enrollment => 
+      !enrollment.certificateIssued && 
+      enrollment.status !== "expired" &&
+      (!enrollment.completedAt || (enrollment.progress || 0) < 100) &&
+      (!enrollment.deadline || new Date(enrollment.deadline) >= new Date()) // Not expired by deadline
+    ).length;
 
     return {
       totalEmployees: totalEmployeesResult[0]?.count || 0,
       activeCourses: activeCoursesResult[0]?.count || 0,
-      pendingAssignments: pendingAssignmentsResult[0]?.count || 0,
+      pendingAssignments: pendingAssignments,
       certificatesIssued: certificatesIssuedResult[0]?.count || 0,
     };
   }
