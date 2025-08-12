@@ -72,7 +72,6 @@ import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog
 import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
 import PerformanceMonitor from "@/components/performance-monitor"; // Import PerformanceMonitor
 import React from "react"; // Import React for useState and other hooks
-import { useNavigate } from "react-router-dom"; // Import useNavigate
 import { Input } from "@/components/ui/input"; // Added Input import
 
 // Settings Tab Component
@@ -244,7 +243,6 @@ export default function EnhancedHRDashboard() {
   const [activeSection, setActiveSection] = useState("dashboard"); // Renamed from activeTab to activeSection
   const [searchTerm, setSearchTerm] = useState("");
   const [, setLocation] = useLocation(); // Use setLocation from wouter
-  const navigate = useNavigate(); // Keep navigate for potential future use or if wouter's navigate is not used
 
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["/api/auth/me"],
