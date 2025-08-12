@@ -244,6 +244,36 @@ export default function EnhancedHRDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [, setLocation] = useLocation(); // Use setLocation from wouter
 
+  // State for dialogs - moved early to avoid initialization errors
+  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
+  const [createCourseOpen, setCreateCourseOpen] = useState(false);
+  const [bulkAssignCourseOpen, setBulkAssignCourseOpen] = useState(false);
+  const [bulkAssignUsersOpen, setBulkAssignUsersOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any>(null);
+  const [courseToEdit, setCourseToEdit] = useState<any>(null); // For course creation/editing
+
+  // State for assignment tracking dialogs
+  const [selectedUsersDialog, setSelectedUsersDialog] = useState(false);
+  const [selectedCourseDialog, setSelectedCourseDialog] = useState(false);
+  const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
+  const [selectedCourseEnrollments, setSelectedCourseEnrollments] =
+    useState<any>(null);
+  const [selectedUserEnrollments, setSelectedUserEnrollments] =
+    useState<any>(null);
+  const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
+  const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
+  const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
+  const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
+
+  // State for course deletion confirmation
+  const [deletionImpact, setDeletionImpact] = React.useState<any>(null);
+  const [showDeletionDialog, setShowDeletionDialog] = React.useState(false);
+  const [courseToDelete, setCourseToDelete] = React.useState<string>("");
+
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["/api/auth/me"],
   });
@@ -719,36 +749,6 @@ export default function EnhancedHRDashboard() {
       });
     }
   };
-
-  // State for dialogs
-  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
-  const [createCourseOpen, setCreateCourseOpen] = useState(false);
-  const [bulkAssignCourseOpen, setBulkAssignCourseOpen] = useState(false);
-  const [bulkAssignUsersOpen, setBulkAssignUsersOpen] = useState(false);
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const [courseToEdit, setCourseToEdit] = useState<any>(null); // For course creation/editing
-
-  // State for assignment tracking dialogs
-  const [selectedUsersDialog, setSelectedUsersDialog] = useState(false);
-  const [selectedCourseDialog, setSelectedCourseDialog] = useState(false);
-  const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
-  const [selectedCourseEnrollments, setSelectedCourseEnrollments] =
-    useState<any>(null);
-  const [selectedUserEnrollments, setSelectedUserEnrollments] =
-    useState<any>(null);
-  const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
-  const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
-  const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
-  const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
-
-  // State for course deletion confirmation
-  const [deletionImpact, setDeletionImpact] = React.useState<any>(null);
-  const [showDeletionDialog, setShowDeletionDialog] = React.useState(false);
-  const [courseToDelete, setCourseToDelete] = React.useState<string>("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
