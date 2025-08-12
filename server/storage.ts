@@ -5,6 +5,7 @@ import {
   enrollments,
   quizzes,
   certificates,
+  settings, // Import the settings table
   type User,
   type Course,
   type Enrollment,
@@ -15,6 +16,8 @@ import {
   type InsertEnrollment,
   type InsertQuiz,
   type InsertCertificate,
+  type InsertSetting, // Import InsertSetting type
+  type Setting, // Import Setting type
 } from "@shared/schema";
 import { eq, and, sql, desc, asc, isNull, or, lt, gte, count, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -865,8 +868,8 @@ export class Storage {
       .where(eq(courses.isActive, true)); // Only count enrollments for active courses
 
     // Calculate pending assignments using the same logic as in the frontend
-    const pendingAssignments = allEnrollments.filter(enrollment => 
-      !enrollment.certificateIssued && 
+    const pendingAssignments = allEnrollments.filter(enrollment =>
+      !enrollment.certificateIssued &&
       enrollment.status !== "expired" &&
       (!enrollment.completedAt || (enrollment.progress || 0) < 100) &&
       (!enrollment.deadline || new Date(enrollment.deadline) >= new Date()) // Not expired by deadline
@@ -881,25 +884,143 @@ export class Storage {
   }
 
   async getUserAnalytics(userId: string): Promise<any> {
-    const [
-      enrollmentCount,
-      completedCount,
-      certificateCount,
-      averageScore,
-    ] = await Promise.all([
-      db.select({ count: count() }).from(enrollments).where(eq(enrollments.userId, userId)),
-      db.select({ count: count() }).from(enrollments).where(and(eq(enrollments.userId, userId), eq(enrollments.certificateIssued, true))),
-      db.select({ count: count() }).from(certificates).where(eq(certificates.userId, userId)),
-      db.select({ avg: sql<number>`AVG(${enrollments.quizScore})` }).from(enrollments).where(and(eq(enrollments.userId, userId), sql`${enrollments.quizScore} IS NOT NULL`)),
-    ]);
+    const user = await this.getUser(userId);
+    if (!user) return null;
+
+    const userEnrollments = await this.getUserEnrollments(userId);
+    const completedCourses = userEnrollments.filter(e => e.certificateIssued);
+    const totalQuizScore = userEnrollments
+      .filter(e => e.quizScore)
+      .reduce((sum, e) => sum + (e.quizScore || 0), 0);
+    const averageScore = userEnrollments.filter(e => e.quizScore).length > 0
+      ? totalQuizScore / userEnrollments.filter(e => e.quizScore).length
+      : 0;
 
     return {
-      totalEnrollments: enrollmentCount[0]?.count || 0,
-      completedCourses: completedCount[0]?.count || 0,
-      certificatesEarned: certificateCount[0]?.count || 0,
-      averageQuizScore: Math.round(averageScore[0]?.avg || 0),
+      user,
+      totalEnrollments: userEnrollments.length,
+      completedCourses: completedCourses.length,
+      averageQuizScore: Math.round(averageScore),
+      enrollments: userEnrollments
     };
   }
+
+  // Settings methods
+  async getAllSettings(): Promise<Setting[]> {
+    try {
+      return await db.select().from(settings).orderBy(settings.category, settings.key);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      return [];
+    }
+  }
+
+  async getSetting(key: string): Promise<Setting | null> {
+    try {
+      const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+      return result[0] || null;
+    } catch (error) {
+      console.error(`Error fetching setting ${key}:`, error);
+      return null;
+    }
+  }
+
+  async createSetting(settingData: InsertSetting): Promise<Setting> {
+    try {
+      const [setting] = await db.insert(settings).values(settingData).returning();
+      return setting;
+    } catch (error) {
+      console.error("Error creating setting:", error);
+      throw error;
+    }
+  }
+
+  async updateSetting(key: string, value: string): Promise<Setting | null> {
+    try {
+      const [setting] = await db
+        .update(settings)
+        .set({ value, updatedAt: new Date() })
+        .where(eq(settings.key, key))
+        .returning();
+      return setting || null;
+    } catch (error) {
+      console.error(`Error updating setting ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async upsertSetting(key: string, value: string, category = "general", description = ""): Promise<Setting> {
+    try {
+      const existing = await this.getSetting(key);
+      if (existing) {
+        return await this.updateSetting(key, value) || existing;
+      } else {
+        return await this.createSetting({ key, value, category, description });
+      }
+    } catch (error) {
+      console.error(`Error upserting setting ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteSetting(key: string): Promise<boolean> {
+    try {
+      const result = await db.delete(settings).where(eq(settings.key, key));
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error(`Error deleting setting ${key}:`, error);
+      return false;
+    }
+  }
+
+  async getSettingsByCategory(category: string): Promise<Setting[]> {
+    try {
+      return await db.select().from(settings).where(eq(settings.category, category)).orderBy(settings.key);
+    } catch (error) {
+      console.error(`Error fetching settings for category ${category}:`, error);
+      return [];
+    }
+  }
+
+  // Initialize default settings
+  async initializeDefaultSettings(): Promise<void> {
+    try {
+      const defaultSettings = [
+        // Email Configuration
+        { key: 'smtp_host', value: process.env.SMTP_HOST || 'smtp.gmail.com', category: 'email', description: 'SMTP server hostname' },
+        { key: 'smtp_port', value: process.env.SMTP_PORT || '587', category: 'email', description: 'SMTP server port' },
+        { key: 'smtp_user', value: process.env.SMTP_USER || '', category: 'email', description: 'SMTP username' },
+        { key: 'smtp_from', value: process.env.SMTP_FROM || 'noreply@traintrack.com', category: 'email', description: 'Default from email address' },
+
+        // System Defaults
+        { key: 'default_passing_score', value: '70', category: 'system', description: 'Default quiz passing score percentage' },
+        { key: 'video_upload_limit', value: '500', category: 'system', description: 'Video upload size limit in MB' },
+        { key: 'default_deadline_days', value: '30', category: 'system', description: 'Default assignment deadline in days' },
+        { key: 'session_timeout_hours', value: '24', category: 'system', description: 'Session timeout in hours' },
+        { key: 'password_reset_token_hours', value: '24', category: 'system', description: 'Password reset token expiry in hours' },
+        { key: 'cleanup_interval_hours', value: '1', category: 'system', description: 'Database cleanup interval in hours' },
+
+        // File & Security
+        { key: 'allowed_video_formats', value: 'mp4,avi,mov,wmv,webm', category: 'security', description: 'Allowed video file formats (comma-separated)' },
+        { key: 'max_reminders_per_assignment', value: '3', category: 'security', description: 'Maximum reminders per assignment' },
+
+        // Certificate Settings
+        { key: 'certificate_template_logo', value: '', category: 'certificate', description: 'Certificate template logo URL' },
+        { key: 'certificate_company_name', value: 'TrainTrack', category: 'certificate', description: 'Company name for certificates' },
+        { key: 'certificate_signature_required', value: 'true', category: 'certificate', description: 'Require digital signature for certificates' },
+        { key: 'certificate_id_prefix', value: 'CERT', category: 'certificate', description: 'Certificate ID prefix' },
+      ];
+
+      for (const setting of defaultSettings) {
+        await this.upsertSetting(setting.key, setting.value, setting.category, setting.description);
+      }
+
+      console.log('Default settings initialized successfully');
+    } catch (error) {
+      console.error('Error initializing default settings:', error);
+    }
+  }
+
 
   // Compliance and reporting
   async getComplianceReport(): Promise<any> {

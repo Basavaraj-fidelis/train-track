@@ -84,6 +84,16 @@ export const certificates = pgTable("certificates", {
   acknowledgedAt: timestamp("acknowledged_at"), // When user acknowledged completion
 });
 
+export const settings = pgTable("settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  category: text("category").notNull().default("general"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),
@@ -134,6 +144,8 @@ export const certificatesRelations = relations(certificates, ({ one }) => ({
   }),
 }));
 
+// Settings don't need relations as they're standalone configuration
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -158,6 +170,12 @@ export const insertEnrollmentSchema = createInsertSchema(enrollments).omit({
 export const insertCertificateSchema = createInsertSchema(certificates).omit({
   id: true,
   issuedAt: true,
+});
+
+export const insertSettingSchema = createInsertSchema(settings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // Bulk assignment schemas
@@ -189,3 +207,5 @@ export type Enrollment = typeof enrollments.$inferSelect;
 export type InsertEnrollment = z.infer<typeof insertEnrollmentSchema>;
 export type Certificate = typeof certificates.$inferSelect;
 export type InsertCertificate = z.infer<typeof insertCertificateSchema>;
+export type Setting = typeof settings.$inferSelect;
+export type InsertSetting = z.infer<typeof insertSettingSchema>;

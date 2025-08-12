@@ -45,6 +45,8 @@ import {
   Calendar,
   PlayCircle,
   FileText,
+  Shield, // Added Shield icon import
+  Award, // Added Award icon import
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -70,43 +72,180 @@ import EmailBulkAssignmentDialog from "@/components/email-bulk-assignment-dialog
 import CourseAssignmentsTracker from "@/components/course-assignments-tracker"; // Import for assignment tracker
 import PerformanceMonitor from "@/components/performance-monitor"; // Import PerformanceMonitor
 import React from "react"; // Import React for useState and other hooks
+import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { Input } from "@/components/ui/input"; // Added Input import
+
+// Settings Tab Component
+function SettingsTab() {
+  const [settings, setSettings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const { data: settingsData, refetch } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const response = await fetch("/api/settings");
+      if (!response.ok) throw new Error("Failed to fetch settings");
+      return response.json();
+    },
+  });
+
+  React.useEffect(() => {
+    if (settingsData) {
+      setSettings(settingsData);
+      setLoading(false);
+    }
+  }, [settingsData]);
+
+  const handleEdit = (key: string, value: string) => {
+    setEditingKey(key);
+    setEditValue(value);
+  };
+
+  const handleSave = async (key: string) => {
+    setSaving(key);
+    try {
+      const response = await fetch(`/api/settings/${key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: editValue }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update setting");
+
+      await refetch();
+      setEditingKey(null);
+      setEditValue("");
+    } catch (error) {
+      console.error("Error saving setting:", error);
+      alert("Failed to save setting");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingKey(null);
+    setEditValue("");
+  };
+
+  const categorizeSettings = (settings: any[]) => {
+    const categories: Record<string, any[]> = {};
+    settings.forEach(setting => {
+      if (!categories[setting.category]) {
+        categories[setting.category] = [];
+      }
+      categories[setting.category].push(setting);
+    });
+    return categories;
+  };
+
+  const getCategoryTitle = (category: string) => {
+    const titles: Record<string, string> = {
+      email: "Email Configuration",
+      system: "System Defaults",
+      security: "File & Security",
+      certificate: "Certificate Settings",
+      general: "General Settings"
+    };
+    return titles[category] || category.charAt(0).toUpperCase() + category.slice(1);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const categorizedSettings = categorizeSettings(settings);
+
+  return (
+    <div className="space-y-6">
+      {Object.entries(categorizedSettings).map(([category, categorySettings]) => (
+        <Card key={category}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {category === 'email' && <Mail className="h-5 w-5" />}
+              {category === 'system' && <Settings className="h-5 w-5" />}
+              {category === 'security' && <Shield className="h-5 w-5" />}
+              {category === 'certificate' && <Award className="h-5 w-5" />}
+              {category === 'general' && <Settings className="h-5 w-5" />}
+              {getCategoryTitle(category)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {categorySettings.map((setting, index) => (
+              <div key={setting.key}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium capitalize">
+                      {setting.key.replace(/_/g, ' ')}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {setting.description || `Configure ${setting.key.replace(/_/g, ' ')}`}
+                    </div>
+                    {editingKey === setting.key ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          placeholder="Enter value..."
+                          className="max-w-xs"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleSave(setting.key)}
+                          disabled={saving === setting.key}
+                        >
+                          {saving === setting.key ? "Saving..." : "Save"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancel}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                        {setting.value || "(not set)"}
+                      </div>
+                    )}
+                  </div>
+                  {editingKey !== setting.key && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(setting.key, setting.value)}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </div>
+                {index < categorySettings.length - 1 && <Separator className="mt-4" />}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function EnhancedHRDashboard() {
-  const [, setLocation] = useLocation();
-  const [activeSection, setActiveSection] = useState("dashboard");
-  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
-  const [createCourseOpen, setCreateCourseOpen] = useState(false);
-  const [bulkAssignCourseOpen, setBulkAssignCourseOpen] = useState(false);
-  const [bulkAssignUsersOpen, setBulkAssignUsersOpen] = useState(false);
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const [courseToEdit, setCourseToEdit] = useState<any>(null); // For course creation/editing
+  const [activeSection, setActiveSection] = useState("dashboard"); // Renamed from activeTab to activeSection
+  const [searchTerm, setSearchTerm] = useState("");
+  const [, setLocation] = useLocation(); // Use setLocation from wouter
+  const navigate = useNavigate(); // Keep navigate for potential future use or if wouter's navigate is not used
 
-  // State for assignment tracking dialogs
-  const [selectedUsersDialog, setSelectedUsersDialog] = useState(false);
-  const [selectedCourseDialog, setSelectedCourseDialog] = useState(false);
-  const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
-  const [selectedCourseEnrollments, setSelectedCourseEnrollments] =
-    useState<any>(null);
-  const [selectedUserEnrollments, setSelectedUserEnrollments] =
-    useState<any>(null);
-  const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
-  const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
-  const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
-  const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
-
-  // State for course deletion confirmation
-  const [deletionImpact, setDeletionImpact] = React.useState<any>(null);
-  const [showDeletionDialog, setShowDeletionDialog] = React.useState(false);
-  const [courseToDelete, setCourseToDelete] = React.useState<string>("");
-
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  // Check authentication
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["/api/auth/me"],
   });
@@ -128,16 +267,6 @@ export default function EnhancedHRDashboard() {
       clientName: "",
       phoneNumber: "",
       password: "",
-    },
-  });
-
-  // Course form for add/edit
-  const courseForm = useForm({
-    defaultValues: {
-      title: "",
-      description: "",
-      videoPath: "",
-      duration: 0,
     },
   });
 
@@ -592,6 +721,39 @@ export default function EnhancedHRDashboard() {
       });
     }
   };
+
+  // State for dialogs
+  const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
+  const [createCourseOpen, setCreateCourseOpen] = useState(false);
+  const [bulkAssignCourseOpen, setBulkAssignCourseOpen] = useState(false);
+  const [bulkAssignUsersOpen, setBulkAssignUsersOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any>(null);
+  const [courseToEdit, setCourseToEdit] = useState<any>(null); // For course creation/editing
+
+  // State for assignment tracking dialogs
+  const [selectedUsersDialog, setSelectedUsersDialog] = useState(false);
+  const [selectedCourseDialog, setSelectedCourseDialog] = useState(false);
+  const [selectedAnalyticsUser, setSelectedAnalyticsUser] = useState<any>(null);
+  const [selectedCourseEnrollments, setSelectedCourseEnrollments] =
+    useState<any>(null);
+  const [selectedUserEnrollments, setSelectedUserEnrollments] =
+    useState<any>(null);
+  const [emailAssignmentOpen, setEmailAssignmentOpen] = useState(false); // State for email assignment dialog
+  const [assignmentsTrackerOpen, setAssignmentsTrackerOpen] = useState(false); // State for assignments tracker dialog
+  const [addCourseOpen, setAddCourseOpen] = useState(false); // State for course creation/editing dialog
+  const [editingCourse, setEditingCourse] = useState<any>(null); // State for course being edited
+
+  // State for course deletion confirmation
+  const [deletionImpact, setDeletionImpact] = React.useState<any>(null);
+  const [showDeletionDialog, setShowDeletionDialog] = React.useState(false);
+  const [courseToDelete, setCourseToDelete] = React.useState<string>("");
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   if (authLoading) {
     return (
@@ -1351,239 +1513,7 @@ export default function EnhancedHRDashboard() {
             )}
 
             {/* Settings Section */}
-            {activeSection === "settings" && (
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Settings
-                </h2>
-
-                <div className="space-y-6">
-                  {/* General Settings */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>General Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Email Notifications</div>
-                          <div className="text-sm text-gray-500">
-                            Send email notifications for course completions
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Configure
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Default Course Duration
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Set default duration for new courses
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Edit
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Quiz Passing Score</div>
-                          <div className="text-sm text-gray-500">
-                            Default passing score percentage (Currently: 70%)
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Change
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* System Information */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>System Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <div className="font-medium">Platform Version</div>
-                          <div className="text-sm text-gray-500">
-                            TrainTrack v1.0.0
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-medium">Database Status</div>
-                          <div className="text-sm text-green-600">
-                            Connected
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-medium">Total Storage Used</div>
-                          <div className="text-sm text-gray-500">
-                            ~{Math.round(Math.random() * 100 + 50)}MB
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-medium">Last Backup</div>
-                          <div className="text-sm text-gray-500">
-                            {new Date().toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Data Management */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Data Management</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Export All Data</div>
-                          <div className="text-sm text-gray-500">
-                            Download all employee and course data
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <Download size={16} className="mr-2" />
-                          Export
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">System Backup</div>
-                          <div className="text-sm text-gray-500">
-                            Create a backup of all system data
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <Upload size={16} className="mr-2" />
-                          Backup
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Clear Cache</div>
-                          <div className="text-sm text-gray-500">
-                            Clear system cache and temporary files
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Clear Cache
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* User Management Settings */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>User Management</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Auto-Generate Employee IDs
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Automatically generate unique employee IDs
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Enable
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Bulk Import Template
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Download CSV template for bulk employee import
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <Download size={16} className="mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Password Reset</div>
-                          <div className="text-sm text-gray-500">
-                            Reset passwords for all employees
-                          </div>
-                        </div>
-                        <Button variant="destructive" size="sm">
-                          Reset All
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Course Settings */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Course Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">Video Upload Limit</div>
-                          <div className="text-sm text-gray-500">
-                            Maximum file size for course videos (Current: 500MB)
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Modify
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Auto-Archive Completed Courses
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Automatically archive courses after completion
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Configure
-                        </Button>
-                      </div>
-                      <Separator />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            Certificate Template
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Customize certificate design and content
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Edit Template
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
+            {activeSection === "settings" && <SettingsTab />}
           </div>
       </div>
 

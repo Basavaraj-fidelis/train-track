@@ -111,6 +111,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('Failed to fix completed course progress:', error);
   }
 
+  // Initialize default settings on startup
+  try {
+    await storage.initializeDefaultSettings();
+  } catch (error) {
+    console.error('Failed to initialize default settings:', error);
+  }
+
   // Database reset endpoint (for development/setup only)
   app.post("/api/admin/reset-database", async (req, res) => {
     try {
@@ -1845,6 +1852,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Failed to fetch performance metrics",
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
+    }
+  });
+
+  // Settings endpoints
+  app.get("/api/settings", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getAllSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.get("/api/settings/category/:category", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getSettingsByCategory(req.params.category);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings by category:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.get("/api/settings/:key", requireAdmin, async (req, res) => {
+    try {
+      const setting = await storage.getSetting(req.params.key);
+      if (!setting) {
+        return res.status(404).json({ message: "Setting not found" });
+      }
+      res.json(setting);
+    } catch (error) {
+      console.error("Error fetching setting:", error);
+      res.status(500).json({ message: "Failed to fetch setting" });
+    }
+  });
+
+  app.post("/api/settings", requireAdmin, async (req, res) => {
+    try {
+      const { key, value, category, description } = req.body;
+      
+      if (!key || !value) {
+        return res.status(400).json({ message: "Key and value are required" });
+      }
+
+      const setting = await storage.upsertSetting(key, value, category || 'general', description || '');
+      res.json(setting);
+    } catch (error) {
+      console.error("Error creating/updating setting:", error);
+      res.status(500).json({ message: "Failed to create/update setting" });
+    }
+  });
+
+  app.put("/api/settings/:key", requireAdmin, async (req, res) => {
+    try {
+      const { value } = req.body;
+      
+      if (!value) {
+        return res.status(400).json({ message: "Value is required" });
+      }
+
+      const setting = await storage.updateSetting(req.params.key, value);
+      if (!setting) {
+        return res.status(404).json({ message: "Setting not found" });
+      }
+      
+      res.json(setting);
+    } catch (error) {
+      console.error("Error updating setting:", error);
+      res.status(500).json({ message: "Failed to update setting" });
+    }
+  });
+
+  app.delete("/api/settings/:key", requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteSetting(req.params.key);
+      if (!success) {
+        return res.status(404).json({ message: "Setting not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting setting:", error);
+      res.status(500).json({ message: "Failed to delete setting" });
+    }
+  });
+
+  app.post("/api/settings/initialize-defaults", requireAdmin, async (req, res) => {
+    try {
+      await storage.initializeDefaultSettings();
+      res.json({ message: "Default settings initialized successfully" });
+    } catch (error) {
+      console.error("Error initializing default settings:", error);
+      res.status(500).json({ message: "Failed to initialize default settings" });
     }
   });
 

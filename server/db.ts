@@ -142,6 +142,19 @@ export async function createTables() {
       )
     `);
 
+    // Create settings table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS settings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        key TEXT NOT NULL UNIQUE,
+        value TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'general',
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     console.log('All tables created successfully');
   } catch (error) {
     console.error('Table creation failed:', error);
@@ -217,6 +230,19 @@ async function ensureSchemaUpdates() {
 
     // Update courses table to include youtube_url
     await db.execute(sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS youtube_url TEXT`);
+
+    // Add settings table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS settings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        key TEXT NOT NULL UNIQUE,
+        value TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'general',
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
     console.log('Database schema updates completed successfully');
   } catch (error) {
