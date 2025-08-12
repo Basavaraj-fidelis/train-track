@@ -753,6 +753,16 @@ export default function EnhancedHRDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Course form for add/edit
+  const courseForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      videoPath: "",
+      duration: 0,
+    },
+  });
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
